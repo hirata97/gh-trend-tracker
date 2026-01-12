@@ -1,0 +1,24 @@
+/**
+ * Cloudflare Workers設定
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gh-trend-tracker-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-07",
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "assets": {
+    "directory": "./public"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gh-trends-db",
+      "database_id": "a9fae3bf-ae66-43af-b167-d329c9e7154d"
+    }
+  ]
+}

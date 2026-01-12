@@ -1,0 +1,10 @@
+{
+  "name": "@gh-trend-tracker/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo \"Frontend not yet implemented\"",
+    "build": "echo \"Frontend not yet implemented\"",
+    "deploy": "echo \"Frontend not yet implemented\""
+  }
+}

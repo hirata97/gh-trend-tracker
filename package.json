@@ -1,0 +1,33 @@
+{
+  "name": "gh-trend-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub Trends Tracker - Visualize GitHub repository trends with quantitative metrics",
+  "workspaces": [
+    "shared",
+    "api",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=api",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build:api": "npm run build --workspace=api",
+    "build:frontend": "npm run build --workspace=frontend",
+    "deploy:api": "npm run deploy --workspace=api",
+    "deploy:frontend": "npm run deploy --workspace=frontend",
+    "test:api": "npm run test --workspace=api"
+  },
+  "keywords": [
+    "github",
+    "trends",
+    "analytics",
+    "cloudflare",
+    "astro",
+    "hono"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
