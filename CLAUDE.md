@@ -19,9 +19,9 @@ GitHub Trend Trackerは、GitHubリポジトリのトレンドを定量指標と
 gh-trend-tracker/
 ├── shared/                      # プロジェクト間共通コード
 │   └── types/
-│       └── api.ts               # API/Frontend間で共有される型定義
+│       └── backend.ts               # API/Frontend間で共有される型定義
 │
-├── api/                         # Cloudflare Workers API
+├── backend/                         # Cloudflare Workers API
 │   ├── src/
 │   │   ├── routes/              # エンドポイント定義（ファイル分割）
 │   │   │   ├── health.ts
@@ -55,10 +55,10 @@ gh-trend-tracker/
 
 ```bash
 # API開発サーバー（ルートから）
-npm run dev:api
+npm run dev:backend
 
 # APIディレクトリで直接作業
-cd api
+cd backend
 npm run dev
 
 # フロントエンド開発サーバー（実装後）
@@ -69,10 +69,10 @@ npm run dev:frontend
 
 ```bash
 # API テスト
-npm run test:api
+npm run test:backend
 
 # または
-cd api
+cd backend
 npm run test
 ```
 
@@ -80,18 +80,18 @@ npm run test
 
 ```bash
 # ルートから
-npm run build:api
-npm run deploy:api
+npm run build:backend
+npm run deploy:backend
 
 # APIディレクトリから
-cd api
+cd backend
 npm run deploy         # Cloudflare Workersへデプロイ
 ```
 
 ### データベース操作
 
 ```bash
-cd api
+cd backend
 
 # WranglerからTypeScript型を生成
 npm run cf-typegen
@@ -114,10 +114,10 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --local
 
 **1. プロジェクト間共有（`/shared/`）**
 - API と Frontend 間で共有されるコード
-- 主に型定義（`shared/types/api.ts`）
-- Frontendから `import type { TrendsResponse } from '@shared/types/api'` として参照
+- 主に型定義（`shared/types/backend.ts`）
+- Frontendから `import type { TrendsResponse } from '@shared/types/backend'` として参照
 
-**2. プロジェクト内共通（`api/src/shared/`）**
+**2. プロジェクト内共通（`backend/src/shared/`）**
 - API内の複数ルートで共有される関数・定数
 - `queries.ts` - データベースクエリ関数
 - `utils.ts` - ユーティリティ関数
@@ -136,17 +136,17 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --local
 - (repo_id, snapshot_date)のUNIQUE制約により1日1スナップショットを保証
 - インデックス: snapshot_date, (repo_id, snapshot_date)
 
-**重要**: `api/src/db/schema.ts`のDrizzle ORMスキーマは`api/schema/schema.sql`のSQLスキーマと同期を保つ必要があります。データベース構造を変更する際は**必ず両方のファイルを更新**してください。
+**重要**: `backend/src/db/schema.ts`のDrizzle ORMスキーマは`backend/schema/schema.sql`のSQLスキーマと同期を保つ必要があります。データベース構造を変更する際は**必ず両方のファイルを更新**してください。
 
 ### APIエンドポイント
 
-全エンドポイントは`api/src/routes/`に分離されており、`index.ts`で統合：
+全エンドポイントは`backend/src/routes/`に分離されており、`index.ts`で統合：
 
 - `GET /health` - ヘルスチェック（`routes/health.ts`）
-- `GET /api/trends` - 全言語のトレンドトップ100（`routes/trends.ts`）
-- `GET /api/trends/:language` - 特定言語のトップ100（`routes/trends.ts`）
-- `GET /api/repos/:repoId/history` - リポジトリの過去90日間のスナップショット（`routes/repositories.ts`）
-- `GET /api/languages` - データベース内の全言語リスト（`routes/languages.ts`）
+- `GET /backend/trends` - 全言語のトレンドトップ100（`routes/trends.ts`）
+- `GET /backend/trends/:language` - 特定言語のトップ100（`routes/trends.ts`）
+- `GET /backend/repos/:repoId/history` - リポジトリの過去90日間のスナップショット（`routes/repositories.ts`）
+- `GET /backend/languages` - データベース内の全言語リスト（`routes/languages.ts`）
 
 全エンドポイントは`c.env.DB`経由でアクセスされるD1バインディングとDrizzle ORMを使用。
 
@@ -154,7 +154,7 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --local
 
 - エンドポイントごとにファイルが分かれているため、コードの見通しが良い
 - テストもルートごとに作成可能（`test/health.spec.ts`など）
-- 複雑なクエリロジックは`api/src/shared/queries.ts`に集約
+- 複雑なクエリロジックは`backend/src/shared/queries.ts`に集約
 
 ### バインディングと環境変数
 
@@ -163,7 +163,7 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - **データベース名**: `gh-trends-db`
 - `wrangler.jsonc`で設定
 
-環境変数（ローカル開発用に`api/.env`に格納）：
+環境変数（ローカル開発用に`backend/.env`に格納）：
 - `GITHUB_TOKEN` - GitHub Personal Access Token（API未使用だがデータ収集用に予定）
 
 ### テスト戦略
@@ -172,11 +172,11 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - `env` - D1データベースを含むシミュレートされたバインディング
 - `SELF` - fetch経由の統合スタイルテスト
 
-テストファイルは`api/test/`に配置。
+テストファイルは`backend/test/`に配置。
 
 ### TypeScript設定
 
-**API (`api/tsconfig.json`)**:
+**API (`backend/tsconfig.json`)**:
 - 厳格モード有効（`"strict": true`）
 - ターゲット: ES2024
 - モジュール: ES2022、Bundler解決
@@ -198,10 +198,10 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - 大規模テーブルの全クエリにインデックスを使用
 
 ### コーディング規約
-- 新しいエンドポイントは`api/src/routes/`に追加
-- 複数ルートで使用するクエリは`api/src/shared/queries.ts`に追加
-- API/Frontend間で共有する型は`shared/types/api.ts`に定義
-- 全ての型は`@shared/types/api`からimport
+- 新しいエンドポイントは`backend/src/routes/`に追加
+- 複数ルートで使用するクエリは`backend/src/shared/queries.ts`に追加
+- API/Frontend間で共有する型は`shared/types/backend.ts`に定義
+- 全ての型は`@shared/types/backend`からimport
 
 ## 予定機能（未実装）
 
@@ -238,7 +238,7 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 ## 重要な注意事項
 
 - **データベースID**: `wrangler.jsonc`のD1データベースIDは環境固有です。新しいデータベースを作成する場合を除き、このIDの変更をコミットしないでください。
-- **スキーマ同期**: `api/src/db/schema.ts`と`api/schema/schema.sql`は常に同期を保ってください。
+- **スキーマ同期**: `backend/src/db/schema.ts`と`backend/schema/schema.sql`は常に同期を保ってください。
 - **CORS**: 現在すべてのオリジンを許可（`cors()`ミドルウェア）。本番環境では制限してください。
 - **エラーハンドリング**: 全エンドポイントがエラーをキャッチし、汎用エラーメッセージで500を返します。本番環境ではより具体的なエラーハンドリングを検討してください。
 - **クエリ制限**: 全トレンドエンドポイントは100件に制限。履歴エンドポイントは90日間に制限。

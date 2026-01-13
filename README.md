@@ -37,7 +37,7 @@ GitHub APIから取得したリポジトリデータを定量的に分析し、�
 
 ```
 gh-trend-tracker/
-├── api/                    # Cloudflare Workers API
+├── backend/                    # Cloudflare Workers API
 │   ├── src/
 │   │   ├── index.ts       # Hono API エンドポイント
 │   │   └── db/
@@ -74,13 +74,13 @@ npm install
 ### 3. Cloudflareログイン
 
 ```bash
-cd api
+cd backend
 npx wrangler login
 ```
 
 ### 4. 環境変数の設定
 
-`api/.env`を作成：
+`backend/.env`を作成：
 
 ```env
 GITHUB_TOKEN=your_github_personal_access_token
@@ -89,7 +89,7 @@ GITHUB_TOKEN=your_github_personal_access_token
 ### 5. D1データベースの作成
 
 ```bash
-cd api
+cd backend
 npx wrangler d1 create gh-trends-db
 ```
 
@@ -103,7 +103,7 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --remote
 
 ```bash
 # APIサーバー
-npm run dev:api
+npm run dev:backend
 
 # フロントエンド（未実装）
 npm run dev:frontend
@@ -114,18 +114,18 @@ npm run dev:frontend
 ### `GET /health`
 ヘルスチェック
 
-### `GET /api/trends`
+### `GET /backend/trends`
 全言語のトレンドトップ100
 
-### `GET /api/trends/:language`
+### `GET /backend/trends/:language`
 指定言語のトレンドランキング
 
-**例**: `/api/trends/TypeScript`
+**例**: `/backend/trends/TypeScript`
 
-### `GET /api/repos/:repoId/history`
+### `GET /backend/repos/:repoId/history`
 リポジトリの過去90日間のスナップショット履歴
 
-### `GET /api/languages`
+### `GET /backend/languages`
 データベースに登録されている言語一覧
 
 ## デプロイ
@@ -133,7 +133,7 @@ npm run dev:frontend
 ### API（Cloudflare Workers）
 
 ```bash
-npm run deploy:api
+npm run deploy:backend
 ```
 
 ### フロントエンド（Cloudflare Pages）
@@ -184,7 +184,7 @@ npm run deploy:frontend
 このプロジェクトはフラットなモノレポ構成を採用しています：
 
 - `shared/` - プロジェクト間共通コード（型定義）
-- `api/` - Cloudflare Workers API
+- `backend/` - Cloudflare Workers API
 - `frontend/` - Astro フロントエンド（未実装）
 - `docs/` - ドキュメント
 

@@ -5,17 +5,17 @@
   "description": "GitHub Trends Tracker - Visualize GitHub repository trends with quantitative metrics",
   "workspaces": [
     "shared",
-    "api",
+    "backend",
     "frontend"
   ],
   "scripts": {
-    "dev:api": "npm run dev --workspace=api",
+    "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
-    "build:api": "npm run build --workspace=api",
+    "build:backend": "npm run build --workspace=backend",
     "build:frontend": "npm run build --workspace=frontend",
-    "deploy:api": "npm run deploy --workspace=api",
+    "deploy:backend": "npm run deploy --workspace=backend",
     "deploy:frontend": "npm run deploy --workspace=frontend",
-    "test:api": "npm run test --workspace=api"
+    "test:backend": "npm run test --workspace=backend"
   },
   "keywords": [
     "github",
