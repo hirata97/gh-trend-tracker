@@ -142,16 +142,44 @@ npm run deploy:backend
 npm run deploy:frontend
 ```
 
+## GitHub Actions 自動化
+
+毎日自動的にGitHubトレンドデータを収集できます。
+
+### セットアップ
+
+詳細な手順は [GitHub Actions セットアップガイド](./docs/github-actions-setup.md) を参照してください。
+
+**必要なシークレット:**
+1. `GH_TRENDS_TOKEN` - GitHub Personal Access Token
+2. `CLOUDFLARE_API_TOKEN` - Cloudflare API Token
+3. `CLOUDFLARE_ACCOUNT_ID` - Cloudflare Account ID
+
+**スケジュール:**
+- 毎日UTC 0:00（日本時間 9:00 AM）に自動実行
+- GitHubリポジトリの Actions タブから手動実行も可能
+
+### 手動実行
+
+```bash
+# ローカルデータベース
+cd backend
+npm run collect
+
+# リモートデータベース
+npm run collect -- --remote
+```
+
 ## ロードマップ
 
 - [x] Cloudflare D1データベースセットアップ
 - [x] Hono API実装
 - [x] Drizzle ORMスキーマ定義
-- [ ] GitHub API データ収集スクリプト
-- [ ] GitHub Actions 日次実行設定
-- [ ] Astroフロントエンド実装
+- [x] GitHub API データ収集スクリプト
+- [x] Astroフロントエンド実装
+- [x] 言語フィルタUI
+- [x] GitHub Actions 日次実行設定
 - [ ] 時系列グラフコンポーネント
-- [ ] 言語フィルタUI
 - [ ] スター増加率計算ロジック
 - [ ] Cloudflare Pagesデプロイ
 

@@ -40,3 +40,4 @@ wrangler.toml.backup
 # Temporary files
 *.tmp
 .cache/
+.temp-insert.sql
