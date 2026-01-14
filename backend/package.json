@@ -1,5 +1,5 @@
 {
-  "name": "@gh-trend-tracker/api",
+  "name": "@gh-trend-tracker/backend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,8 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "collect": "tsx scripts/collect-data.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.1",
@@ -16,7 +17,9 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.19",
     "@cloudflare/workers-types": "^4.20250109.0",
+    "@types/node": "^22.10.5",
     "drizzle-kit": "^0.31.8",
+    "tsx": "^4.19.2",
     "typescript": "^5.5.2",
     "vitest": "^3.2.0",
     "wrangler": "^4.58.0"

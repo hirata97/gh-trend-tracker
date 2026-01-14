@@ -1,0 +1,62 @@
+---
+import Layout from '../layouts/Layout.astro';
+import TrendList from '../components/TrendList';
+import LanguageFilter from '../components/LanguageFilter';
+import { getTrends, getLanguages } from '../lib/api';
+
+// Get language from query parameter
+const url = new URL(Astro.request.url);
+const selectedLanguage = url.searchParams.get('language') || undefined;
+
+// Fetch data from backend API
+let trends = [];
+let languages = [];
+let error = null;
+
+try {
+  const trendsData = await getTrends(selectedLanguage);
+  trends = trendsData.trends || [];
+
+  const languagesData = await getLanguages();
+  languages = languagesData.languages || [];
+} catch (e) {
+  error = e instanceof Error ? e.message : 'Unknown error occurred';
+  console.error('Failed to fetch data:', e);
+}
+---
+
+<Layout title="GitHub Trends Tracker">
+  <div class="container">
+    <h1>GitHub Trends Tracker</h1>
+
+    {error ? (
+      <div class="error">
+        <strong>Error loading data:</strong> {error}
+        <br />
+        <br />
+        <p>Make sure the backend API is running:</p>
+        <code>cd backend && npm run dev</code>
+      </div>
+    ) : (
+      <>
+        <LanguageFilter
+          languages={languages}
+          currentLanguage={selectedLanguage}
+          client:load
+        />
+
+        {selectedLanguage && (
+          <h2>
+            Trending in {selectedLanguage} ({trends.length} repositories)
+          </h2>
+        )}
+
+        {!selectedLanguage && (
+          <h2>All Trending Repositories ({trends.length} total)</h2>
+        )}
+
+        <TrendList initialTrends={trends} client:load />
+      </>
+    )}
+  </div>
+</Layout>
