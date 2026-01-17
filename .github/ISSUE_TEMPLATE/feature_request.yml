@@ -1,0 +1,91 @@
+name: ✨ 新機能要求
+description: 新しい機能や改善を提案する
+title: "[Feature] "
+labels: ["type-basic:feature"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        新機能の提案ありがとうございます。詳細な要求仕様を記述していただくことで、より良い機能を実装できます。
+
+  - type: textarea
+    id: feature-summary
+    attributes:
+      label: ✨ 機能の概要
+      description: 提案する機能の概要を簡潔に説明してください
+      placeholder: どのような機能を追加したいですか？
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 🎯 動機・背景
+      description: なぜこの機能が必要なのか、どのような問題を解決するのかを説明してください
+      placeholder: この機能が必要な理由や背景を教えてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: detailed-description
+    attributes:
+      label: 📝 詳細な説明
+      description: 機能の詳細な仕様や動作について説明してください
+      placeholder: |
+        - 具体的にどのような動作をするべきか
+        - ユーザーインターフェースはどうあるべきか
+        - 既存機能との関係性
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: ✅ 受け入れ条件
+      description: 機能が完成したと判断できる条件を列挙してください
+      placeholder: |
+        - [ ] 条件1
+        - [ ] 条件2
+        - [ ] 条件3
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 代替案
+      description: 検討した代替的なソリューションがあれば説明してください
+      placeholder: 他に検討した解決方法はありますか？
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 🚨 優先度
+      description: この機能の優先度を選択してください
+      options:
+        - P2 - 中優先度（通常）
+        - P1 - 高優先度（重要）  
+        - P0 - 最高優先度（緊急・重要）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: 📏 実装規模
+      description: この機能の実装規模を見積もってください
+      options:
+        - S - 小規模（1-2日）
+        - M - 中規模（3-5日）
+        - L - 大規模（1週間以上）
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📎 追加情報
+      description: モックアップ、参考資料、その他の関連情報があれば添付してください
+      placeholder: スクリーンショット、参考サイト、関連する情報があれば記載してください

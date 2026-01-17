@@ -1,0 +1,96 @@
+name: 🚀 改善提案
+description: 既存機能の改善や最適化を提案する
+title: "[Enhancement] "
+labels: ["type-basic:enhancement"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        既存機能の改善提案ありがとうございます。具体的な改善内容と期待効果を記述してください。
+
+  - type: textarea
+    id: current-situation
+    attributes:
+      label: 📋 現在の状況
+      description: 改善したい機能や処理の現在の状況を説明してください
+      placeholder: 現在どのような動作をしていますか？何が問題ですか？
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-improvement
+    attributes:
+      label: 🚀 改善提案
+      description: 具体的にどのような改善を行いたいかを説明してください
+      placeholder: どのように改善したいですか？
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-benefits
+    attributes:
+      label: 💡 期待効果
+      description: 改善によって得られる効果やメリットを説明してください
+      placeholder: |
+        - パフォーマンスの向上
+        - ユーザビリティの改善
+        - 保守性の向上
+        - その他の効果
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation-approach
+    attributes:
+      label: 🔧 実装アプローチ
+      description: 改善をどのように実装するかのアイデアがあれば記述してください
+      placeholder: 実装方法のアイデアや技術的なアプローチがあれば教えてください
+
+  - type: dropdown
+    id: improvement-type
+    attributes:
+      label: 📈 改善種別
+      description: 改善の種別を選択してください
+      options:
+        - type-infra:performance - パフォーマンス改善
+        - type-basic:enhancement - UI/UX改善
+        - type-basic:refactor - コード品質改善
+        - type-infra:security - セキュリティ改善
+        - type-quality:docs - ドキュメント改善
+        - type-quality:test - テスト改善
+        - Other - その他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 🚨 優先度
+      description: この改善の優先度を選択してください
+      options:
+        - P2 - 中優先度（通常）
+        - P1 - 高優先度（重要）
+        - P0 - 最高優先度（緊急・重要）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: 📏 作業規模
+      description: この改善の作業規模を見積もってください
+      options:
+        - S - 小規模（1-2日）
+        - M - 中規模（3-5日）
+        - L - 大規模（1週間以上）
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📎 追加情報
+      description: 参考資料、ベンチマーク結果、その他の関連情報があれば添付してください
+      placeholder: その他の情報があれば記載してください

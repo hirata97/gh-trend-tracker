@@ -1,0 +1,95 @@
+name: 🐛 バグ報告
+description: バグや問題を報告する
+title: "[Bug] "
+labels: ["type-basic:bugfix"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        バグ報告ありがとうございます。詳細な情報を提供していただくことで、迅速な問題解決につながります。
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: 🐛 バグの概要
+      description: バグの詳細な説明をお書きください
+      placeholder: どのような問題が発生していますか？
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: 🔄 再現手順
+      description: バグを再現するための手順を詳しく書いてください
+      placeholder: |
+        1. '...'に移動
+        2. '...'をクリック
+        3. '...'まで下にスクロール
+        4. エラーを確認
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: ✅ 期待される動作
+      description: 本来どのような動作をするべきかを説明してください
+      placeholder: 何が起こると期待していましたか？
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: ❌ 実際の動作
+      description: 実際に起こった動作を説明してください
+      placeholder: 実際には何が起こりましたか？
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 🌍 環境
+      description: 使用している環境について教えてください
+      placeholder: |
+        - OS: [e.g. Windows 11, macOS 13, Ubuntu 22.04]
+        - ブラウザ: [e.g. Chrome 120, Firefox 118, Safari 17]
+        - Node.js バージョン: [e.g. 18.17.0]
+        - その他関連する情報
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📎 追加情報
+      description: スクリーンショット、ログ、その他の関連情報があれば添付してください
+      placeholder: その他の情報があれば記載してください
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 🚨 優先度
+      description: このバグの優先度を選択してください
+      options:
+        - P2 - 中優先度（通常）
+        - P1 - 高優先度（重要）
+        - P0 - 最高優先度（緊急・重要）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: 📏 作業規模
+      description: この修正の作業規模を見積もってください
+      options:
+        - S - 小規模（1-2日）
+        - M - 中規模（3-5日）
+        - L - 大規模（1週間以上）
+    validations:
+      required: true

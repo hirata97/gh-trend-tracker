@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 ディスカッション
+    url: https://github.com/RsPYP/GoalCategorizationDiary/discussions
+    about: 質問や一般的な議論はこちらで
+  - name: 📚 ドキュメント
+    url: https://github.com/RsPYP/GoalCategorizationDiary/blob/develop/README.md
+    about: プロジェクトの詳細情報とセットアップガイド
