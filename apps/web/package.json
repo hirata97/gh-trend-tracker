@@ -1,5 +1,5 @@
 {
-  "name": "@gh-trend-tracker/frontend",
+  "name": "@gh-trend-tracker/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,6 +10,7 @@
     "deploy": "echo \"Deploy not yet configured\""
   },
   "dependencies": {
+    "@gh-trend-tracker/shared-types": "*",
     "astro": "^4.16.0",
     "@astrojs/react": "^3.6.2",
     "react": "^18.3.1",

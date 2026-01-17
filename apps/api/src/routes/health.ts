@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { HealthResponse } from '@shared/types/api';
+import type { HealthResponse } from '@gh-trend-tracker/shared-types';
 
 type Bindings = {
   DB: D1Database;

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
 import { getAllLanguages } from '../shared/queries';
-import type { LanguagesResponse, ErrorResponse } from '@shared/types/api';
+import type { LanguagesResponse, ErrorResponse } from '@gh-trend-tracker/shared-types';
 
 type Bindings = {
   DB: D1Database;

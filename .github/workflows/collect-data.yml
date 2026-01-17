@@ -21,6 +21,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -30,16 +31,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_TRENDS_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          cd backend
-          npm run collect -- --remote
+        working-directory: apps/api
+        run: npm run collect -- --remote
 
       - name: Verify data collection
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/api
         run: |
-          cd backend
           npx wrangler d1 execute gh-trends-db \
             --command="SELECT COUNT(*) as total FROM repositories" \
             --remote
