@@ -2,17 +2,21 @@ import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
 import { getRepositoryHistory } from '../shared/queries';
 import { DEFAULT_HISTORY_DAYS } from '../shared/constants';
+import { parsePositiveInt } from '../shared/utils';
 import type { HistoryResponse, ErrorResponse } from '@gh-trend-tracker/shared-types';
-
-type Bindings = {
-  DB: D1Database;
-};
+import type { Bindings } from '../types/bindings';
 
 const repositories = new Hono<{ Bindings: Bindings }>();
 
 // リポジトリの履歴データ
 repositories.get('/:repoId/history', async (c) => {
-  const repoId = parseInt(c.req.param('repoId'));
+  const repoId = parsePositiveInt(c.req.param('repoId'));
+
+  if (repoId === null) {
+    const errorResponse: ErrorResponse = { error: 'Invalid repoId: must be a positive integer' };
+    return c.json(errorResponse, 400);
+  }
+
   const db = drizzle(c.env.DB);
 
   try {

@@ -1,9 +1,6 @@
 import { Hono } from 'hono';
 import type { HealthResponse } from '@gh-trend-tracker/shared-types';
-
-type Bindings = {
-  DB: D1Database;
-};
+import type { Bindings } from '../types/bindings';
 
 const health = new Hono<{ Bindings: Bindings }>();
 
