@@ -4,10 +4,7 @@ import health from './routes/health';
 import trends from './routes/trends';
 import repositories from './routes/repositories';
 import languages from './routes/languages';
-
-type Bindings = {
-  DB: D1Database;
-};
+import type { Bindings } from './types/bindings';
 
 const app = new Hono<{ Bindings: Bindings }>();
 

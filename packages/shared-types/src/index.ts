@@ -39,8 +39,8 @@ export interface TrendItem {
   language: string | null;
   description: string | null;
   htmlUrl: string;
-  currentStars: number;
-  snapshotDate?: string;
+  currentStars: number | null; // LEFT JOINでスナップショットがない場合はnull
+  snapshotDate?: string | null;
 }
 
 export interface TrendsResponse {
