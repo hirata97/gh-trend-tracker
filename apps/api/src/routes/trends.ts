@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
 import { getTrendsByLanguage, getAllTrends } from '../shared/queries';
 import { DEFAULT_TREND_LIMIT } from '../shared/constants';
-import type { TrendsResponse, ErrorResponse } from '@shared/types/api';
+import type { TrendsResponse, ErrorResponse } from '@gh-trend-tracker/shared-types';
 
 type Bindings = {
   DB: D1Database;

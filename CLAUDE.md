@@ -4,11 +4,11 @@
 
 ## 概要
 
-GitHub Trend Trackerは、GitHubリポジトリのトレンドを定量指標として抽出・可視化するWebサービスです。フラットなモノレポ構成を採用し、プロジェクト間共有とプロジェクト内共有を明確に分離しています。
+GitHub Trend Trackerは、GitHubリポジトリのトレンドを定量指標として抽出・可視化するWebサービスです。スケーラブルなモノレポ構成（apps/ + packages/）を採用し、プロジェクト間共有とプロジェクト内共有を明確に分離しています。
 
 **技術スタック:**
 - **API**: Cloudflare Workers + Hono + Drizzle ORM + Cloudflare D1 (SQLite)
-- **フロントエンド**: Astro + React（予定、未実装）
+- **フロントエンド**: Astro + React
 - **共通**: TypeScript（厳格モード有効）
 - **パッケージマネージャ**: npm workspaces
 - **Node バージョン**: >= 20.0.0
@@ -17,36 +17,44 @@ GitHub Trend Trackerは、GitHubリポジトリのトレンドを定量指標と
 
 ```
 gh-trend-tracker/
-├── shared/                      # プロジェクト間共通コード
-│   └── types/
-│       └── backend.ts               # API/Frontend間で共有される型定義
+├── apps/                           # アプリケーションコード
+│   ├── api/                        # Cloudflare Workers API
+│   │   ├── src/
+│   │   │   ├── routes/             # エンドポイント定義
+│   │   │   │   ├── health.ts
+│   │   │   │   ├── trends.ts
+│   │   │   │   ├── repositories.ts
+│   │   │   │   └── languages.ts
+│   │   │   ├── db/
+│   │   │   │   └── schema.ts       # Drizzle ORM スキーマ定義
+│   │   │   ├── shared/             # API内共通コード
+│   │   │   │   ├── queries.ts      # 共通クエリ関数
+│   │   │   │   ├── utils.ts        # ユーティリティ関数
+│   │   │   │   └── constants.ts    # 定数定義
+│   │   │   └── index.ts            # Honoアプリケーションのエントリーポイント
+│   │   ├── schema/
+│   │   │   └── schema.sql          # D1 SQLスキーマ（Drizzleスキーマと同期必須）
+│   │   ├── test/
+│   │   └── wrangler.jsonc
+│   │
+│   └── web/                        # Astro フロントエンド
+│       ├── src/
+│       │   ├── components/
+│       │   ├── pages/
+│       │   └── lib/
+│       └── package.json
 │
-├── backend/                         # Cloudflare Workers API
-│   ├── src/
-│   │   ├── routes/              # エンドポイント定義（ファイル分割）
-│   │   │   ├── health.ts
-│   │   │   ├── trends.ts
-│   │   │   ├── repositories.ts
-│   │   │   └── languages.ts
-│   │   ├── db/
-│   │   │   └── schema.ts        # Drizzle ORM スキーマ定義
-│   │   ├── shared/              # API内共通コード
-│   │   │   ├── queries.ts       # 共通クエリ関数
-│   │   │   ├── utils.ts         # ユーティリティ関数
-│   │   │   └── constants.ts     # 定数定義
-│   │   └── index.ts             # Honoアプリケーションのエントリーポイント
-│   ├── schema/
-│   │   └── schema.sql           # D1 SQLスキーマ（Drizzleスキーマと同期必須）
-│   ├── test/
-│   │   ├── health.spec.ts
-│   │   └── setup.ts
-│   └── public/                  # 静的ファイル
+├── packages/                       # 共有パッケージ
+│   └── shared-types/               # API/Web間の型定義
+│       ├── src/
+│       │   └── index.ts
+│       └── package.json
 │
-├── frontend/                    # Astro フロントエンド（未実装）
-│   ├── src/
-│   └── package.json
-│
-└── package.json                 # ワークスペース管理
+├── docs/                           # ドキュメント
+├── .github/workflows/              # CI/CD
+├── tsconfig.base.json              # 共通TypeScript設定
+├── package.json                    # ワークスペース管理
+└── CLAUDE.md
 ```
 
 ## よく使うコマンド
@@ -55,43 +63,42 @@ gh-trend-tracker/
 
 ```bash
 # API開発サーバー（ルートから）
-npm run dev:backend
+npm run dev:api
 
-# APIディレクトリで直接作業
-cd backend
-npm run dev
+# Web開発サーバー（ルートから）
+npm run dev:web
 
-# フロントエンド開発サーバー（実装後）
-npm run dev:frontend
+# 各ディレクトリで直接作業
+cd apps/api && npm run dev
+cd apps/web && npm run dev
 ```
 
 ### テスト
 
 ```bash
-# API テスト
-npm run test:backend
+# API テスト（ルートから）
+npm run test:api
 
 # または
-cd backend
-npm run test
+cd apps/api && npm run test
 ```
 
 ### ビルドとデプロイ
 
 ```bash
 # ルートから
-npm run build:backend
-npm run deploy:backend
+npm run build:api
+npm run build:web
+npm run deploy:api
 
-# APIディレクトリから
-cd backend
-npm run deploy         # Cloudflare Workersへデプロイ
+# 各ディレクトリから
+cd apps/api && npm run deploy
 ```
 
 ### データベース操作
 
 ```bash
-cd backend
+cd apps/api
 
 # WranglerからTypeScript型を生成
 npm run cf-typegen
@@ -108,20 +115,27 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --local
 
 ## アーキテクチャ
 
-### 共通化の設計思想
+### 共有コードの境界ルール
 
-このプロジェクトは**2階層のshared構造**を採用：
+このプロジェクトは**2階層の共有構造**を採用：
 
-**1. プロジェクト間共有（`/shared/`）**
-- API と Frontend 間で共有されるコード
-- 主に型定義（`shared/types/backend.ts`）
-- Frontendから `import type { TrendsResponse } from '@shared/types/backend'` として参照
+| 配置場所 | 用途 | 例 |
+|----------|------|-----|
+| `apps/api/src/shared/` | **API内でのみ**使用するコード | DBクエリ関数、API固有ユーティリティ |
+| `apps/web/src/shared/` | **Web内でのみ**使用するコード | UIユーティリティ、フォーマッター |
+| `packages/shared-types/` | **複数アプリ間**で共有する型定義 | APIレスポンス型、共通エンティティ型 |
 
-**2. プロジェクト内共通（`backend/src/shared/`）**
-- API内の複数ルートで共有される関数・定数
-- `queries.ts` - データベースクエリ関数
-- `utils.ts` - ユーティリティ関数
-- `constants.ts` - 定数定義
+**判断基準**: 2つ以上のアプリで使用する場合のみ `packages/` に昇格させる。
+
+### インポート例
+
+```typescript
+// apps/api/src/routes/trends.ts
+import type { TrendsResponse } from '@gh-trend-tracker/shared-types'
+
+// apps/web/src/lib/api.ts
+import type { TrendsResponse } from '@gh-trend-tracker/shared-types'
+```
 
 ### データベーススキーマ
 
@@ -136,25 +150,17 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --local
 - (repo_id, snapshot_date)のUNIQUE制約により1日1スナップショットを保証
 - インデックス: snapshot_date, (repo_id, snapshot_date)
 
-**重要**: `backend/src/db/schema.ts`のDrizzle ORMスキーマは`backend/schema/schema.sql`のSQLスキーマと同期を保つ必要があります。データベース構造を変更する際は**必ず両方のファイルを更新**してください。
+**重要**: `apps/api/src/db/schema.ts`のDrizzle ORMスキーマは`apps/api/schema/schema.sql`のSQLスキーマと同期を保つ必要があります。データベース構造を変更する際は**必ず両方のファイルを更新**してください。
 
 ### APIエンドポイント
 
-全エンドポイントは`backend/src/routes/`に分離されており、`index.ts`で統合：
+全エンドポイントは`apps/api/src/routes/`に分離されており、`index.ts`で統合：
 
-- `GET /health` - ヘルスチェック（`routes/health.ts`）
-- `GET /backend/trends` - 全言語のトレンドトップ100（`routes/trends.ts`）
-- `GET /backend/trends/:language` - 特定言語のトップ100（`routes/trends.ts`）
-- `GET /backend/repos/:repoId/history` - リポジトリの過去90日間のスナップショット（`routes/repositories.ts`）
-- `GET /backend/languages` - データベース内の全言語リスト（`routes/languages.ts`）
-
-全エンドポイントは`c.env.DB`経由でアクセスされるD1バインディングとDrizzle ORMを使用。
-
-### ルート分離のメリット
-
-- エンドポイントごとにファイルが分かれているため、コードの見通しが良い
-- テストもルートごとに作成可能（`test/health.spec.ts`など）
-- 複雑なクエリロジックは`backend/src/shared/queries.ts`に集約
+- `GET /health` - ヘルスチェック
+- `GET /backend/trends` - 全言語のトレンドトップ100
+- `GET /backend/trends/:language` - 特定言語のトップ100
+- `GET /backend/repos/:repoId/history` - リポジトリの過去90日間のスナップショット
+- `GET /backend/languages` - データベース内の全言語リスト
 
 ### バインディングと環境変数
 
@@ -163,25 +169,23 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - **データベース名**: `gh-trends-db`
 - `wrangler.jsonc`で設定
 
-環境変数（ローカル開発用に`backend/.env`に格納）：
-- `GITHUB_TOKEN` - GitHub Personal Access Token（API未使用だがデータ収集用に予定）
-
-### テスト戦略
-
-テストは`@cloudflare/vitest-pool-workers`を使用：
-- `env` - D1データベースを含むシミュレートされたバインディング
-- `SELF` - fetch経由の統合スタイルテスト
-
-テストファイルは`backend/test/`に配置。
+環境変数（ローカル開発用に`apps/api/.env`に格納）：
+- `GITHUB_TOKEN` - GitHub Personal Access Token
 
 ### TypeScript設定
 
-**API (`backend/tsconfig.json`)**:
-- 厳格モード有効（`"strict": true`）
-- ターゲット: ES2024
-- モジュール: ES2022、Bundler解決
-- 出力なし（Wranglerがバンドル処理）
-- パスエイリアス: `@shared/*` → `../shared/*`
+**ルート (`tsconfig.base.json`)**:
+- 共通設定を定義
+- 各アプリがextendsして使用
+
+**API (`apps/api/tsconfig.json`)**:
+- `tsconfig.base.json`を継承
+- Cloudflare Workers固有の設定
+- パスエイリアス: `@gh-trend-tracker/shared-types`
+
+**Web (`apps/web/tsconfig.json`)**:
+- Astro設定を継承
+- パスエイリアス: `@gh-trend-tracker/shared-types`
 
 ## 主要な制約事項
 
@@ -198,47 +202,36 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - 大規模テーブルの全クエリにインデックスを使用
 
 ### コーディング規約
-- 新しいエンドポイントは`backend/src/routes/`に追加
-- 複数ルートで使用するクエリは`backend/src/shared/queries.ts`に追加
-- API/Frontend間で共有する型は`shared/types/backend.ts`に定義
-- 全ての型は`@shared/types/backend`からimport
-
-## 予定機能（未実装）
-
-- GitHub APIデータ収集スクリプト
-- 日次データ収集用GitHub Actions
-- Rechartsによる可視化を含むAstroフロントエンド
-- スター増加率計算（7日間ウィンドウ）
-- Cloudflare Pagesデプロイ
+- 新しいエンドポイントは`apps/api/src/routes/`に追加
+- 複数ルートで使用するクエリは`apps/api/src/shared/queries.ts`に追加
+- API/Web間で共有する型は`packages/shared-types/src/index.ts`に定義
+- 全ての共有型は`@gh-trend-tracker/shared-types`からimport
 
 ## 開発プロセス
 
 新規機能追加や大規模な改修を行う前に、`docs/development-process.md`を参照してください。
-
-**開発プロセスドキュメント**には以下が含まれます：
-
-1. **企画・構想フェーズ** - 目的・価値定義、スコープ定義
-2. **要件定義** - 機能要件、非機能要件、制約条件
-3. **画面設計** - UI/UX設計、ワイヤーフレーム
-4. **技術選定** - フロントエンド、バックエンド、インフラ
-5. **データ設計** - データモデル、API設計
-6. **実装前準備** - コーディング規約、リポジトリルール
-7. **テスト設計** - テスト方針、テスト観点
-8. **運用設計** - ログ、監視、分析
-9. **リリース前チェック**
-10. **よくある失敗パターン**
 
 **重要**: 特に以下の項目は着手前に必ず検討すること
 - 目的・価値定義（なぜ作るのか）
 - 非機能要件（パフォーマンス、セキュリティ）
 - データ設計（後から変更しにくい）
 
-詳細は [`docs/development-process.md`](../docs/development-process.md) を参照。
-
 ## 重要な注意事項
 
 - **データベースID**: `wrangler.jsonc`のD1データベースIDは環境固有です。新しいデータベースを作成する場合を除き、このIDの変更をコミットしないでください。
-- **スキーマ同期**: `backend/src/db/schema.ts`と`backend/schema/schema.sql`は常に同期を保ってください。
+- **スキーマ同期**: `apps/api/src/db/schema.ts`と`apps/api/schema/schema.sql`は常に同期を保ってください。
 - **CORS**: 現在すべてのオリジンを許可（`cors()`ミドルウェア）。本番環境では制限してください。
 - **エラーハンドリング**: 全エンドポイントがエラーをキャッチし、汎用エラーメッセージで500を返します。本番環境ではより具体的なエラーハンドリングを検討してください。
 - **クエリ制限**: 全トレンドエンドポイントは100件に制限。履歴エンドポイントは90日間に制限。
+
+## 将来拡張: Turborepo導入判断基準
+
+現時点ではTurborepoを導入せず、npm workspacesのみで運用する。
+以下の条件を満たした場合に導入を検討する。
+
+| 条件 | 現状 | 閾値 |
+|------|------|------|
+| アプリ数 | 2（api, web） | **3以上** |
+| 全体ビルド時間 | 数秒 | **1分以上** |
+| 開発者数 | 1人 | **3人以上** |
+| キャッシュ要求 | 不要 | リモートキャッシュ必要時 |

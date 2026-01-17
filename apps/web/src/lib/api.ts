@@ -7,7 +7,7 @@ import type {
   TrendsResponse,
   LanguagesResponse,
   HistoryResponse,
-} from '@shared/types/api';
+} from '@gh-trend-tracker/shared-types';
 
 const API_BASE =
   import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';

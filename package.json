@@ -4,18 +4,19 @@
   "private": true,
   "description": "GitHub Trends Tracker - Visualize GitHub repository trends with quantitative metrics",
   "workspaces": [
-    "shared",
-    "backend",
-    "frontend"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
-    "dev:backend": "npm run dev --workspace=backend",
-    "dev:frontend": "npm run dev --workspace=frontend",
-    "build:backend": "npm run build --workspace=backend",
-    "build:frontend": "npm run build --workspace=frontend",
-    "deploy:backend": "npm run deploy --workspace=backend",
-    "deploy:frontend": "npm run deploy --workspace=frontend",
-    "test:backend": "npm run test --workspace=backend"
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build:api": "npm run build -w apps/api",
+    "build:web": "npm run build -w apps/web",
+    "deploy:api": "npm run deploy -w apps/api",
+    "deploy:web": "npm run deploy -w apps/web",
+    "test:api": "npm run test -w apps/api",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
   },
   "keywords": [
     "github",

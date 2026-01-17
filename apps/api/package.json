@@ -1,5 +1,5 @@
 {
-  "name": "@gh-trend-tracker/backend",
+  "name": "@gh-trend-tracker/api",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,6 +11,7 @@
     "collect": "tsx scripts/collect-data.ts"
   },
   "dependencies": {
+    "@gh-trend-tracker/shared-types": "*",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.3"
   },

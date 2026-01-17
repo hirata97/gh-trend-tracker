@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
 import { getRepositoryHistory } from '../shared/queries';
 import { DEFAULT_HISTORY_DAYS } from '../shared/constants';
-import type { HistoryResponse, ErrorResponse } from '@shared/types/api';
+import type { HistoryResponse, ErrorResponse } from '@gh-trend-tracker/shared-types';
 
 type Bindings = {
   DB: D1Database;
