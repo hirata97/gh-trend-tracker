@@ -11,7 +11,7 @@ GitHub APIから取得したリポジトリデータを定量的に分析し、�
 - ✅ 言語別トレンドランキング
 - ✅ リポジトリのスター数時系列グラフ
 - 🚧 7日間のスター増加率計算
-- 🚧 GitHub Actionsによる日次データ収集
+- ✅ GitHub Actionsによる日次データ収集
 
 ## 技術スタック
 
@@ -23,7 +23,7 @@ GitHub APIから取得したリポジトリデータを定量的に分析し、�
 - **Language**: TypeScript
 
 ### フロントエンド
-- **Framework**: Astro (予定)
+- **Framework**: Astro
 - **UI Components**: React
 - **Charts**: Recharts (予定)
 - **Styling**: TailwindCSS (予定)
@@ -31,22 +31,37 @@ GitHub APIから取得したリポジトリデータを定量的に分析し、�
 ### DevOps
 - **Package Manager**: npm (workspaces)
 - **Deployment**: Cloudflare Workers & Pages
-- **CI/CD**: GitHub Actions (予定)
+- **CI/CD**: GitHub Actions
 
 ## プロジェクト構成（モノレポ）
 
 ```
 gh-trend-tracker/
-├── backend/                    # Cloudflare Workers API
-│   ├── src/
-│   │   ├── index.ts       # Hono API エンドポイント
-│   │   └── db/
-│   │       └── schema.ts  # Drizzle ORM スキーマ
-│   ├── schema/
-│   │   └── schema.sql     # D1 データベーススキーマ
-│   └── wrangler.jsonc     # Cloudflare設定
-├── frontend/               # Astro フロントエンド（予定）
-├── package.json           # ワークスペース管理
+├── apps/
+│   ├── api/                    # Cloudflare Workers API
+│   │   ├── src/
+│   │   │   ├── index.ts        # Hono API エンドポイント
+│   │   │   ├── routes/         # ルート定義
+│   │   │   └── db/
+│   │   │       └── schema.ts   # Drizzle ORM スキーマ
+│   │   ├── schema/
+│   │   │   └── schema.sql      # D1 データベーススキーマ
+│   │   └── wrangler.jsonc      # Cloudflare設定
+│   │
+│   └── web/                    # Astro フロントエンド
+│       └── src/
+│           ├── components/
+│           ├── pages/
+│           └── lib/
+│
+├── packages/
+│   └── shared-types/           # API/Web間の共有型定義
+│       └── src/
+│           └── index.ts
+│
+├── docs/                       # ドキュメント
+├── tsconfig.base.json          # 共通TypeScript設定
+├── package.json                # ワークスペース管理
 └── README.md
 ```
 
@@ -74,13 +89,13 @@ npm install
 ### 3. Cloudflareログイン
 
 ```bash
-cd backend
+cd apps/api
 npx wrangler login
 ```
 
 ### 4. 環境変数の設定
 
-`backend/.env`を作成：
+`apps/api/.env`を作成：
 
 ```env
 GITHUB_TOKEN=your_github_personal_access_token
@@ -89,7 +104,7 @@ GITHUB_TOKEN=your_github_personal_access_token
 ### 5. D1データベースの作成
 
 ```bash
-cd backend
+cd apps/api
 npx wrangler d1 create gh-trends-db
 ```
 
@@ -103,10 +118,10 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --remote
 
 ```bash
 # APIサーバー
-npm run dev:backend
+npm run dev:api
 
-# フロントエンド（未実装）
-npm run dev:frontend
+# フロントエンド
+npm run dev:web
 ```
 
 ## APIエンドポイント
@@ -133,13 +148,13 @@ npm run dev:frontend
 ### API（Cloudflare Workers）
 
 ```bash
-npm run deploy:backend
+npm run deploy:api
 ```
 
 ### フロントエンド（Cloudflare Pages）
 
 ```bash
-npm run deploy:frontend
+npm run deploy:web
 ```
 
 ## GitHub Actions 自動化
@@ -163,7 +178,7 @@ npm run deploy:frontend
 
 ```bash
 # ローカルデータベース
-cd backend
+cd apps/api
 npm run collect
 
 # リモートデータベース
@@ -179,6 +194,7 @@ npm run collect -- --remote
 - [x] Astroフロントエンド実装
 - [x] 言語フィルタUI
 - [x] GitHub Actions 日次実行設定
+- [x] CI/CDパイプライン（テスト・ビルド）
 - [ ] 時系列グラフコンポーネント
 - [ ] スター増加率計算ロジック
 - [ ] Cloudflare Pagesデプロイ
@@ -209,11 +225,11 @@ npm run collect -- --remote
 
 ### ディレクトリ構造
 
-このプロジェクトはフラットなモノレポ構成を採用しています：
+このプロジェクトはスケーラブルなモノレポ構成（apps/ + packages/）を採用しています：
 
-- `shared/` - プロジェクト間共通コード（型定義）
-- `backend/` - Cloudflare Workers API
-- `frontend/` - Astro フロントエンド（未実装）
+- `apps/api/` - Cloudflare Workers API
+- `apps/web/` - Astro フロントエンド
+- `packages/shared-types/` - API/Web間の共有型定義
 - `docs/` - ドキュメント
 
 詳細は [CLAUDE.md](./CLAUDE.md) を参照してください。
