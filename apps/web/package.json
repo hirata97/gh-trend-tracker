@@ -7,16 +7,18 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "type-check": "astro check",
     "deploy": "echo \"Deploy not yet configured\""
   },
   "dependencies": {
+    "@astrojs/react": "^4.4.2",
     "@gh-trend-tracker/shared-types": "*",
     "astro": "^5.16.11",
-    "@astrojs/react": "^4.4.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.6",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
     "typescript": "^5.6.3"
