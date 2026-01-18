@@ -15,7 +15,7 @@ GitHub APIから取得したリポジトリデータを定量的に分析し、�
 
 ## 技術スタック
 
-### バックエンド（API）
+### バックエンド
 - **Runtime**: Cloudflare Workers
 - **Framework**: Hono
 - **Database**: Cloudflare D1 (SQLite)
@@ -38,26 +38,28 @@ GitHub APIから取得したリポジトリデータを定量的に分析し、�
 ```
 gh-trend-tracker/
 ├── apps/
-│   ├── api/                    # Cloudflare Workers API
+│   ├── backend/                # Cloudflare Workers API
 │   │   ├── src/
 │   │   │   ├── index.ts        # Hono API エンドポイント
 │   │   │   ├── routes/         # ルート定義
+│   │   │   ├── schemas/        # Zodスキーマ（バリデーション用）
 │   │   │   └── db/
 │   │   │       └── schema.ts   # Drizzle ORM スキーマ
+│   │   ├── openapi/
+│   │   │   └── openapi.yaml    # OpenAPI 3.0仕様書
 │   │   ├── schema/
 │   │   │   └── schema.sql      # D1 データベーススキーマ
 │   │   └── wrangler.jsonc      # Cloudflare設定
 │   │
-│   └── web/                    # Astro フロントエンド
+│   └── frontend/               # Astro フロントエンド
 │       └── src/
 │           ├── components/
 │           ├── pages/
 │           └── lib/
 │
-├── packages/
-│   └── shared-types/           # API/Web間の共有型定義
-│       └── src/
-│           └── index.ts
+├── shared/                     # Backend/Frontend間の共有型定義
+│   └── src/
+│       └── index.ts
 │
 ├── docs/                       # ドキュメント
 ├── tsconfig.base.json          # 共通TypeScript設定
@@ -89,13 +91,13 @@ npm install
 ### 3. Cloudflareログイン
 
 ```bash
-cd apps/api
+cd apps/backend
 npx wrangler login
 ```
 
 ### 4. 環境変数の設定
 
-`apps/api/.env`を作成：
+`apps/backend/.env`を作成：
 
 ```env
 GITHUB_TOKEN=your_github_personal_access_token
@@ -104,7 +106,7 @@ GITHUB_TOKEN=your_github_personal_access_token
 ### 5. D1データベースの作成
 
 ```bash
-cd apps/api
+cd apps/backend
 npx wrangler d1 create gh-trends-db
 ```
 
@@ -117,11 +119,11 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --remote
 ### 6. 開発サーバーの起動
 
 ```bash
-# APIサーバー
-npm run dev:api
+# バックエンド
+npm run dev:backend
 
 # フロントエンド
-npm run dev:web
+npm run dev:frontend
 ```
 
 ## APIエンドポイント
@@ -129,32 +131,32 @@ npm run dev:web
 ### `GET /health`
 ヘルスチェック
 
-### `GET /backend/trends`
+### `GET /api/trends`
 全言語のトレンドトップ100
 
-### `GET /backend/trends/:language`
+### `GET /api/trends/:language`
 指定言語のトレンドランキング
 
-**例**: `/backend/trends/TypeScript`
+**例**: `/api/trends/TypeScript`
 
-### `GET /backend/repos/:repoId/history`
+### `GET /api/repos/:repoId/history`
 リポジトリの過去90日間のスナップショット履歴
 
-### `GET /backend/languages`
+### `GET /api/languages`
 データベースに登録されている言語一覧
 
 ## デプロイ
 
-### API（Cloudflare Workers）
+### バックエンド（Cloudflare Workers）
 
 ```bash
-npm run deploy:api
+npm run deploy:backend
 ```
 
 ### フロントエンド（Cloudflare Pages）
 
 ```bash
-npm run deploy:web
+npm run deploy:frontend
 ```
 
 ## GitHub Actions 自動化
@@ -178,7 +180,7 @@ npm run deploy:web
 
 ```bash
 # ローカルデータベース
-cd apps/api
+cd apps/backend
 npm run collect
 
 # リモートデータベース
@@ -195,6 +197,7 @@ npm run collect -- --remote
 - [x] 言語フィルタUI
 - [x] GitHub Actions 日次実行設定
 - [x] CI/CDパイプライン（テスト・ビルド）
+- [x] OpenAPI仕様書作成
 - [ ] 時系列グラフコンポーネント
 - [ ] スター増加率計算ロジック
 - [ ] Cloudflare Pagesデプロイ
@@ -225,11 +228,11 @@ npm run collect -- --remote
 
 ### ディレクトリ構造
 
-このプロジェクトはスケーラブルなモノレポ構成（apps/ + packages/）を採用しています：
+このプロジェクトはスケーラブルなモノレポ構成（apps/ + shared/）を採用しています：
 
-- `apps/api/` - Cloudflare Workers API
-- `apps/web/` - Astro フロントエンド
-- `packages/shared-types/` - API/Web間の共有型定義
+- `apps/backend/` - Cloudflare Workers API
+- `apps/frontend/` - Astro フロントエンド
+- `shared/` - Backend/Frontend間の共有型定義
 - `docs/` - ドキュメント
 
 詳細は [CLAUDE.md](./CLAUDE.md) を参照してください。

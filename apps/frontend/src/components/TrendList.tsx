@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import type { TrendItem } from '@gh-trend-tracker/shared-types';
+import type { TrendItem } from '@gh-trend-tracker/shared';
 
 interface Props {
   initialTrends: TrendItem[];

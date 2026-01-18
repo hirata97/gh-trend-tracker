@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import TrendList from '../components/TrendList';
 import LanguageFilter from '../components/LanguageFilter';
 import { getTrends, getLanguages } from '../lib/api';
-import type { TrendItem } from '@gh-trend-tracker/shared-types';
+import type { TrendItem } from '@gh-trend-tracker/shared';
 
 // Get language from query parameter
 const url = new URL(Astro.request.url);

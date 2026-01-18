@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { getRepositoryHistory } from '../shared/queries';
 import { DEFAULT_HISTORY_DAYS } from '../shared/constants';
 import { parsePositiveInt } from '../shared/utils';
-import type { HistoryResponse, ErrorResponse } from '@gh-trend-tracker/shared-types';
+import type { HistoryResponse, ErrorResponse } from '@gh-trend-tracker/shared';
 import type { Bindings } from '../types/bindings';
 
 const repositories = new Hono<{ Bindings: Bindings }>();

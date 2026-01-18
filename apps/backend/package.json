@@ -1,5 +1,5 @@
 {
-  "name": "@gh-trend-tracker/api",
+  "name": "@gh-trend-tracker/backend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,9 +12,10 @@
     "collect": "tsx scripts/collect-data.ts"
   },
   "dependencies": {
-    "@gh-trend-tracker/shared-types": "*",
+    "@gh-trend-tracker/shared": "*",
     "drizzle-orm": "^0.45.1",
-    "hono": "^4.11.3"
+    "hono": "^4.11.3",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.19",
