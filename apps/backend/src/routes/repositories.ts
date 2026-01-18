@@ -1,12 +1,11 @@
 import { Hono } from 'hono';
-import { drizzle } from 'drizzle-orm/d1';
 import { getRepositoryHistory } from '../shared/queries';
 import { DEFAULT_HISTORY_DAYS } from '../shared/constants';
 import { parsePositiveInt } from '../shared/utils';
 import type { HistoryResponse, ErrorResponse } from '@gh-trend-tracker/shared';
-import type { Bindings } from '../types/bindings';
+import type { AppEnv } from '../types/app';
 
-const repositories = new Hono<{ Bindings: Bindings }>();
+const repositories = new Hono<AppEnv>();
 
 // リポジトリの履歴データ
 repositories.get('/:repoId/history', async (c) => {
@@ -17,7 +16,7 @@ repositories.get('/:repoId/history', async (c) => {
     return c.json(errorResponse, 400);
   }
 
-  const db = drizzle(c.env.DB);
+  const db = c.get('db');
 
   try {
     const history = await getRepositoryHistory(db, repoId, DEFAULT_HISTORY_DAYS);
