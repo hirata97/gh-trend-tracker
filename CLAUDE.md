@@ -4,11 +4,11 @@
 
 ## 概要
 
-GitHub Trend Trackerは、GitHubリポジトリのトレンドを定量指標として抽出・可視化するWebサービスです。スケーラブルなモノレポ構成（apps/ + packages/）を採用し、プロジェクト間共有とプロジェクト内共有を明確に分離しています。
+GitHub Trend Trackerは、GitHubリポジトリのトレンドを定量指標として抽出・可視化するWebサービスです。スケーラブルなモノレポ構成（apps/ + shared/）を採用し、プロジェクト間共有とプロジェクト内共有を明確に分離しています。
 
 **技術スタック:**
-- **API**: Cloudflare Workers + Hono + Drizzle ORM + Cloudflare D1 (SQLite)
-- **フロントエンド**: Astro + React
+- **Backend**: Cloudflare Workers + Hono + Drizzle ORM + Cloudflare D1 (SQLite)
+- **Frontend**: Astro + React
 - **共通**: TypeScript（厳格モード有効）
 - **パッケージマネージャ**: npm workspaces
 - **Node バージョン**: >= 20.0.0
@@ -18,7 +18,7 @@ GitHub Trend Trackerは、GitHubリポジトリのトレンドを定量指標と
 ```
 gh-trend-tracker/
 ├── apps/                           # アプリケーションコード
-│   ├── api/                        # Cloudflare Workers API
+│   ├── backend/                    # Cloudflare Workers API
 │   │   ├── src/
 │   │   │   ├── routes/             # エンドポイント定義
 │   │   │   │   ├── health.ts
@@ -27,28 +27,29 @@ gh-trend-tracker/
 │   │   │   │   └── languages.ts
 │   │   │   ├── db/
 │   │   │   │   └── schema.ts       # Drizzle ORM スキーマ定義
-│   │   │   ├── shared/             # API内共通コード
+│   │   │   ├── schemas/            # Zodスキーマ（ランタイムバリデーション用）
+│   │   │   ├── shared/             # Backend内共通コード
 │   │   │   │   ├── queries.ts      # 共通クエリ関数
 │   │   │   │   ├── utils.ts        # ユーティリティ関数
 │   │   │   │   └── constants.ts    # 定数定義
 │   │   │   └── index.ts            # Honoアプリケーションのエントリーポイント
+│   │   ├── openapi/
+│   │   │   └── openapi.yaml        # OpenAPI 3.0仕様書
 │   │   ├── schema/
 │   │   │   └── schema.sql          # D1 SQLスキーマ（Drizzleスキーマと同期必須）
 │   │   ├── test/
 │   │   └── wrangler.jsonc
 │   │
-│   └── web/                        # Astro フロントエンド
+│   └── frontend/                   # Astro フロントエンド
 │       ├── src/
 │       │   ├── components/
 │       │   ├── pages/
 │       │   └── lib/
 │       └── package.json
 │
-├── packages/                       # 共有パッケージ
-│   └── shared-types/               # API/Web間の型定義
-│       ├── src/
-│       │   └── index.ts
-│       └── package.json
+├── shared/                         # Backend/Frontend間の共有コード
+│   └── src/
+│       └── index.ts                # 共有型定義
 │
 ├── docs/                           # ドキュメント
 ├── .github/workflows/              # CI/CD
@@ -62,43 +63,43 @@ gh-trend-tracker/
 ### 開発
 
 ```bash
-# API開発サーバー（ルートから）
-npm run dev:api
+# Backend開発サーバー（ルートから）
+npm run dev:backend
 
-# Web開発サーバー（ルートから）
-npm run dev:web
+# Frontend開発サーバー（ルートから）
+npm run dev:frontend
 
 # 各ディレクトリで直接作業
-cd apps/api && npm run dev
-cd apps/web && npm run dev
+cd apps/backend && npm run dev
+cd apps/frontend && npm run dev
 ```
 
 ### テスト
 
 ```bash
-# API テスト（ルートから）
-npm run test:api
+# Backend テスト（ルートから）
+npm run test:backend
 
 # または
-cd apps/api && npm run test
+cd apps/backend && npm run test
 ```
 
 ### ビルドとデプロイ
 
 ```bash
 # ルートから
-npm run build:api
-npm run build:web
-npm run deploy:api
+npm run build:backend
+npm run build:frontend
+npm run deploy:backend
 
 # 各ディレクトリから
-cd apps/api && npm run deploy
+cd apps/backend && npm run deploy
 ```
 
 ### データベース操作
 
 ```bash
-cd apps/api
+cd apps/backend
 
 # WranglerからTypeScript型を生成
 npm run cf-typegen
@@ -121,20 +122,20 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --local
 
 | 配置場所 | 用途 | 例 |
 |----------|------|-----|
-| `apps/api/src/shared/` | **API内でのみ**使用するコード | DBクエリ関数、API固有ユーティリティ |
-| `apps/web/src/shared/` | **Web内でのみ**使用するコード | UIユーティリティ、フォーマッター |
-| `packages/shared-types/` | **複数アプリ間**で共有する型定義 | APIレスポンス型、共通エンティティ型 |
+| `apps/backend/src/shared/` | **Backend内でのみ**使用するコード | DBクエリ関数、API固有ユーティリティ |
+| `apps/frontend/src/shared/` | **Frontend内でのみ**使用するコード | UIユーティリティ、フォーマッター |
+| `shared/` | **複数アプリ間**で共有する型定義 | APIレスポンス型、共通エンティティ型 |
 
-**判断基準**: 2つ以上のアプリで使用する場合のみ `packages/` に昇格させる。
+**判断基準**: 2つ以上のアプリで使用する場合のみ `shared/` に配置する。
 
 ### インポート例
 
 ```typescript
-// apps/api/src/routes/trends.ts
-import type { TrendsResponse } from '@gh-trend-tracker/shared-types'
+// apps/backend/src/routes/trends.ts
+import type { TrendsResponse } from '@gh-trend-tracker/shared'
 
-// apps/web/src/lib/api.ts
-import type { TrendsResponse } from '@gh-trend-tracker/shared-types'
+// apps/frontend/src/lib/api.ts
+import type { TrendsResponse } from '@gh-trend-tracker/shared'
 ```
 
 ### データベーススキーマ
@@ -150,17 +151,17 @@ import type { TrendsResponse } from '@gh-trend-tracker/shared-types'
 - (repo_id, snapshot_date)のUNIQUE制約により1日1スナップショットを保証
 - インデックス: snapshot_date, (repo_id, snapshot_date)
 
-**重要**: `apps/api/src/db/schema.ts`のDrizzle ORMスキーマは`apps/api/schema/schema.sql`のSQLスキーマと同期を保つ必要があります。データベース構造を変更する際は**必ず両方のファイルを更新**してください。
+**重要**: `apps/backend/src/db/schema.ts`のDrizzle ORMスキーマは`apps/backend/schema/schema.sql`のSQLスキーマと同期を保つ必要があります。データベース構造を変更する際は**必ず両方のファイルを更新**してください。
 
 ### APIエンドポイント
 
-全エンドポイントは`apps/api/src/routes/`に分離されており、`index.ts`で統合：
+全エンドポイントは`apps/backend/src/routes/`に分離されており、`index.ts`で統合：
 
 - `GET /health` - ヘルスチェック
-- `GET /backend/trends` - 全言語のトレンドトップ100
-- `GET /backend/trends/:language` - 特定言語のトップ100
-- `GET /backend/repos/:repoId/history` - リポジトリの過去90日間のスナップショット
-- `GET /backend/languages` - データベース内の全言語リスト
+- `GET /api/trends` - 全言語のトレンドトップ100
+- `GET /api/trends/:language` - 特定言語のトップ100
+- `GET /api/repos/:repoId/history` - リポジトリの過去90日間のスナップショット
+- `GET /api/languages` - データベース内の全言語リスト
 
 ### バインディングと環境変数
 
@@ -169,7 +170,7 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - **データベース名**: `gh-trends-db`
 - `wrangler.jsonc`で設定
 
-環境変数（ローカル開発用に`apps/api/.env`に格納）：
+環境変数（ローカル開発用に`apps/backend/.env`に格納）：
 - `GITHUB_TOKEN` - GitHub Personal Access Token
 
 ### TypeScript設定
@@ -178,14 +179,14 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - 共通設定を定義
 - 各アプリがextendsして使用
 
-**API (`apps/api/tsconfig.json`)**:
+**Backend (`apps/backend/tsconfig.json`)**:
 - `tsconfig.base.json`を継承
 - Cloudflare Workers固有の設定
-- パスエイリアス: `@gh-trend-tracker/shared-types`
+- パスエイリアス: `@gh-trend-tracker/shared`
 
-**Web (`apps/web/tsconfig.json`)**:
+**Frontend (`apps/frontend/tsconfig.json`)**:
 - Astro設定を継承
-- パスエイリアス: `@gh-trend-tracker/shared-types`
+- パスエイリアス: `@gh-trend-tracker/shared`
 
 ## 主要な制約事項
 
@@ -202,10 +203,10 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - 大規模テーブルの全クエリにインデックスを使用
 
 ### コーディング規約
-- 新しいエンドポイントは`apps/api/src/routes/`に追加
-- 複数ルートで使用するクエリは`apps/api/src/shared/queries.ts`に追加
-- API/Web間で共有する型は`packages/shared-types/src/index.ts`に定義
-- 全ての共有型は`@gh-trend-tracker/shared-types`からimport
+- 新しいエンドポイントは`apps/backend/src/routes/`に追加
+- 複数ルートで使用するクエリは`apps/backend/src/shared/queries.ts`に追加
+- Backend/Frontend間で共有する型は`shared/src/index.ts`に定義
+- 全ての共有型は`@gh-trend-tracker/shared`からimport
 
 ## 開発プロセス
 
@@ -219,7 +220,7 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 ## 重要な注意事項
 
 - **データベースID**: `wrangler.jsonc`のD1データベースIDは環境固有です。新しいデータベースを作成する場合を除き、このIDの変更をコミットしないでください。
-- **スキーマ同期**: `apps/api/src/db/schema.ts`と`apps/api/schema/schema.sql`は常に同期を保ってください。
+- **スキーマ同期**: `apps/backend/src/db/schema.ts`と`apps/backend/schema/schema.sql`は常に同期を保ってください。
 - **CORS**: 現在すべてのオリジンを許可（`cors()`ミドルウェア）。本番環境では制限してください。
 - **エラーハンドリング**: 全エンドポイントがエラーをキャッチし、汎用エラーメッセージで500を返します。本番環境ではより具体的なエラーハンドリングを検討してください。
 - **クエリ制限**: 全トレンドエンドポイントは100件に制限。履歴エンドポイントは90日間に制限。
@@ -231,7 +232,7 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 
 | 条件 | 現状 | 閾値 |
 |------|------|------|
-| アプリ数 | 2（api, web） | **3以上** |
+| アプリ数 | 2（backend, frontend） | **3以上** |
 | 全体ビルド時間 | 数秒 | **1分以上** |
 | 開発者数 | 1人 | **3人以上** |
 | キャッシュ要求 | 不要 | リモートキャッシュ必要時 |

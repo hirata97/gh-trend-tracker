@@ -1,5 +1,5 @@
 {
-  "name": "@gh-trend-tracker/web",
+  "name": "@gh-trend-tracker/frontend",
   "version": "0.1.0",
   "private": true,
   "type": "module",

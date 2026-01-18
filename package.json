@@ -8,14 +8,14 @@
     "shared"
   ],
   "scripts": {
-    "dev:api": "npm run dev -w apps/api",
-    "dev:web": "npm run dev -w apps/web",
-    "build:api": "npm run build -w apps/api",
-    "build:web": "npm run build -w apps/web",
+    "dev:backend": "npm run dev -w apps/backend",
+    "dev:frontend": "npm run dev -w apps/frontend",
+    "build:backend": "npm run build -w apps/backend",
+    "build:frontend": "npm run build -w apps/frontend",
     "build": "npm run build --workspaces --if-present",
-    "deploy:api": "npm run deploy -w apps/api",
-    "deploy:web": "npm run deploy -w apps/web",
-    "test:api": "npm run test -w apps/api",
+    "deploy:backend": "npm run deploy -w apps/backend",
+    "deploy:frontend": "npm run deploy -w apps/frontend",
+    "test:backend": "npm run test -w apps/backend",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "type-check": "npm run type-check --workspaces --if-present"
