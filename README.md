@@ -16,6 +16,7 @@ GitHub APIから取得したリポジトリデータを定量的に分析し、�
 ## 技術スタック
 
 ### バックエンド
+
 - **Runtime**: Cloudflare Workers
 - **Framework**: Hono
 - **Database**: Cloudflare D1 (SQLite)
@@ -23,12 +24,14 @@ GitHub APIから取得したリポジトリデータを定量的に分析し、�
 - **Language**: TypeScript
 
 ### フロントエンド
+
 - **Framework**: Astro
 - **UI Components**: React
 - **Charts**: Recharts (予定)
 - **Styling**: TailwindCSS (予定)
 
 ### DevOps
+
 - **Package Manager**: npm (workspaces)
 - **Deployment**: Cloudflare Workers & Pages
 - **CI/CD**: GitHub Actions
@@ -70,6 +73,7 @@ gh-trend-tracker/
 ## セットアップ
 
 ### 必要な環境
+
 - Node.js >= 20.0.0
 - npm >= 10.0.0
 - Cloudflareアカウント（無料）
@@ -129,20 +133,25 @@ npm run dev:frontend
 ## APIエンドポイント
 
 ### `GET /health`
+
 ヘルスチェック
 
 ### `GET /api/trends`
+
 全言語のトレンドトップ100
 
 ### `GET /api/trends/:language`
+
 指定言語のトレンドランキング
 
 **例**: `/api/trends/TypeScript`
 
 ### `GET /api/repos/:repoId/history`
+
 リポジトリの過去90日間のスナップショット履歴
 
 ### `GET /api/languages`
+
 データベースに登録されている言語一覧
 
 ## デプロイ
@@ -168,11 +177,13 @@ npm run deploy:frontend
 詳細な手順は [GitHub Actions セットアップガイド](./docs/github-actions-setup.md) を参照してください。
 
 **必要なシークレット:**
+
 1. `GH_TRENDS_TOKEN` - GitHub Personal Access Token
 2. `CLOUDFLARE_API_TOKEN` - Cloudflare API Token
 3. `CLOUDFLARE_ACCOUNT_ID` - Cloudflare Account ID
 
 **スケジュール:**
+
 - 毎日UTC 0:00（日本時間 9:00 AM）に自動実行
 - GitHubリポジトリの Actions タブから手動実行も可能
 

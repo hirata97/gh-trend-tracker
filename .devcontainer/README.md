@@ -44,21 +44,21 @@ wrangler whoami
 
 ## アクセスURL
 
-| サービス | URL | 説明 |
-|----------|-----|------|
-| Wrangler (API) | http://localhost:8787 | Cloudflare Workers開発サーバー |
+| サービス         | URL                   | 説明                               |
+| ---------------- | --------------------- | ---------------------------------- |
+| Wrangler (API)   | http://localhost:8787 | Cloudflare Workers開発サーバー     |
 | Astro (Frontend) | http://localhost:4321 | フロントエンド開発サーバー（予定） |
 
 ## インストール済みツール
 
-| ツール | 用途 |
-|--------|------|
-| Node.js 20 | JavaScript実行環境 |
+| ツール       | 用途                      |
+| ------------ | ------------------------- |
+| Node.js 20   | JavaScript実行環境        |
 | Wrangler CLI | Cloudflare Workers/D1管理 |
-| GitHub CLI | GitHub操作 |
-| Claude Code | AI支援開発 |
-| uv | Serena MCP用Python環境 |
-| Docker CLI | コンテナ操作 |
+| GitHub CLI   | GitHub操作                |
+| Claude Code  | AI支援開発                |
+| uv           | Serena MCP用Python環境    |
+| Docker CLI   | コンテナ操作              |
 
 ## ディレクトリ構造
 

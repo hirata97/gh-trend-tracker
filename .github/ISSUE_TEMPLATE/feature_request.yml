@@ -1,7 +1,7 @@
 name: ✨ 新機能要求
 description: 新しい機能や改善を提案する
-title: "[Feature] "
-labels: ["type-basic:feature"]
+title: '[Feature] '
+labels: ['type-basic:feature']
 assignees: []
 
 body:
@@ -66,7 +66,7 @@ body:
       description: この機能の優先度を選択してください
       options:
         - P2 - 中優先度（通常）
-        - P1 - 高優先度（重要）  
+        - P1 - 高優先度（重要）
         - P0 - 最高優先度（緊急・重要）
     validations:
       required: true

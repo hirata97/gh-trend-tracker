@@ -1,7 +1,7 @@
 name: 🐛 バグ報告
 description: バグや問題を報告する
-title: "[Bug] "
-labels: ["type-basic:bugfix"]
+title: '[Bug] '
+labels: ['type-basic:bugfix']
 assignees: []
 
 body:

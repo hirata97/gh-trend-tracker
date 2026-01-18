@@ -6,10 +6,7 @@
   },
   "workspaceFolder": "/app",
 
-  "runArgs": [
-    "--network=host",
-    "--name=gh-trend-tracker-dev-container"
-  ],
+  "runArgs": ["--network=host", "--name=gh-trend-tracker-dev-container"],
 
   "mounts": [
     "source=${localWorkspaceFolder},target=/app,type=bind,consistency=cached",

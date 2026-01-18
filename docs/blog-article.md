@@ -24,20 +24,24 @@
 ## 技術スタック
 
 ### バックエンド
+
 - **Cloudflare Workers**: サーバーレスランタイム
 - **Hono**: 軽量Webフレームワーク
 - **Cloudflare D1**: サーバーレスSQLiteデータベース
 - **Drizzle ORM**: TypeScript ORM
 
 ### フロントエンド
+
 - **Astro 4**: 静的サイトジェネレーター
 - **React 18**: UIコンポーネント
 - **TypeScript**: 型安全性
 
 ### 自動化
+
 - **GitHub Actions**: 日次データ収集
 
 ### パッケージ管理
+
 - **npm workspaces**: モノレポ構成
 
 ### なぜこの構成？
@@ -148,6 +152,7 @@ git mv api backend
 GitHub REST APIの `/search/repositories` エンドポイントを使用。
 
 **検索クエリ例**:
+
 ```
 language:TypeScript created:>2025-12-01 sort:stars
 ```
@@ -157,6 +162,7 @@ language:TypeScript created:>2025-12-01 sort:stars
 - 言語で絞り込み
 
 **対象言語（10言語）**:
+
 - TypeScript, JavaScript, Python, Go, Rust
 - Java, C++, Ruby, PHP, Swift
 
@@ -199,6 +205,7 @@ export class RateLimiter {
 スナップショット方式を採用し、日次でリポジトリの指標を記録。
 
 **repositories テーブル**:
+
 ```sql
 CREATE TABLE repositories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,6 +223,7 @@ CREATE TABLE repositories (
 ```
 
 **repo_snapshots テーブル**:
+
 ```sql
 CREATE TABLE repo_snapshots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -231,6 +239,7 @@ CREATE TABLE repo_snapshots (
 ```
 
 **設計のポイント**:
+
 - `repositories`: `INSERT OR REPLACE` でupsert
 - `repo_snapshots`: `INSERT OR IGNORE` で重複防止
 - 将来的にスター増加率を計算可能
@@ -309,6 +318,7 @@ export class DatabaseManager {
 - **React**: クライアントサイドの動的な部分のみ
 
 **部分的ハイドレーション**:
+
 ```astro
 ---
 // src/pages/index.astro
@@ -347,7 +357,9 @@ export default function LanguageFilter({ languages }: Props) {
     <select onChange={handleChange}>
       <option value="">All Languages</option>
       {languages.map((lang) => (
-        <option key={lang} value={lang}>{lang}</option>
+        <option key={lang} value={lang}>
+          {lang}
+        </option>
       ))}
     </select>
   );
@@ -355,6 +367,7 @@ export default function LanguageFilter({ languages }: Props) {
 ```
 
 **クエリパラメータでフィルタリング**:
+
 - `/?language=TypeScript` → TypeScriptのみ表示
 - `/` → 全言語表示
 
@@ -376,7 +389,8 @@ table {
   border-collapse: collapse;
 }
 
-th, td {
+th,
+td {
   text-align: left;
   padding: 0.75rem;
   border-bottom: 1px solid #e1e4e8;
@@ -402,7 +416,7 @@ name: Daily GitHub Trends Collection
 on:
   schedule:
     - cron: '0 0 * * *'
-  workflow_dispatch:  # 手動実行も可能
+  workflow_dispatch: # 手動実行も可能
 
 jobs:
   collect-data:
@@ -432,13 +446,14 @@ jobs:
 
 **必要なシークレット（3つ）**:
 
-| シークレット名 | 用途 | 取得方法 |
-|---|---|---|
-| `GH_TRENDS_TOKEN` | GitHub API アクセス | https://github.com/settings/tokens <br> Scopes: `public_repo` |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API アクセス | https://dash.cloudflare.com/profile/api-tokens <br> 権限: `D1:Edit`, `Workers Scripts:Edit` |
-| `CLOUDFLARE_ACCOUNT_ID` | アカウント識別子 | `npx wrangler whoami` で確認 |
+| シークレット名          | 用途                    | 取得方法                                                                                    |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| `GH_TRENDS_TOKEN`       | GitHub API アクセス     | https://github.com/settings/tokens <br> Scopes: `public_repo`                               |
+| `CLOUDFLARE_API_TOKEN`  | Cloudflare API アクセス | https://dash.cloudflare.com/profile/api-tokens <br> 権限: `D1:Edit`, `Workers Scripts:Edit` |
+| `CLOUDFLARE_ACCOUNT_ID` | アカウント識別子        | `npx wrangler whoami` で確認                                                                |
 
 **設定場所**:
+
 ```
 GitHub リポジトリ > Settings > Secrets and variables > Actions
 ```
@@ -452,6 +467,7 @@ GitHub リポジトリ > Settings > Secrets and variables > Actions
 ### 問題1: `await` を非async関数で使用
 
 **エラー**:
+
 ```
 Error: "await" can only be used inside an "async" function
 ```
@@ -461,7 +477,7 @@ Error: "await" can only be used inside an "async" function
 ```typescript
 // ❌ 問題のあるコード
 function loadEnv() {
-  const fs = await import('fs');  // await in non-async function
+  const fs = await import('fs'); // await in non-async function
   const path = await import('path');
   // ...
 }
@@ -486,6 +502,7 @@ function loadEnv() {
 ### 問題2: Cloudflare認証エラー
 
 **エラー**:
+
 ```
 ✘ [ERROR] Authentication error [code: 10000]
 ```
@@ -507,6 +524,7 @@ Cloudflareの **"Edit Cloudflare Workers"** テンプレートには、`D1:Edit`
 ### 問題3: npm依存関係のインストール失敗
 
 **エラー**:
+
 ```
 npm error ENOTEMPTY: directory not empty
 ```
@@ -514,6 +532,7 @@ npm error ENOTEMPTY: directory not empty
 **原因**: WSL環境でnpmキャッシュが破損
 
 **解決**:
+
 ```bash
 rm package-lock.json
 npm install
@@ -526,6 +545,7 @@ npm install
 ### 1. Cloudflare D1のクセ
 
 **ローカルとリモートの分離**:
+
 ```bash
 # ローカルD1（開発用）
 npx wrangler d1 execute gh-trends-db --command="SELECT ..." --local
@@ -535,6 +555,7 @@ npx wrangler d1 execute gh-trends-db --command="SELECT ..." --remote
 ```
 
 **一括INSERTの高速化**:
+
 - コマンド実行のオーバーヘッドが大きい
 - SQLファイル経由が圧倒的に速い
 
@@ -554,6 +575,7 @@ npx wrangler d1 execute gh-trends-db --command="SELECT ..." --remote
 ```
 
 **メリット**:
+
 - 依存関係を一元管理
 - 共通のnode_modules
 - 型定義を共有可能
@@ -584,7 +606,7 @@ import type { TrendsResponse } from '@shared/types/api';
 
 export async function getTrends(): Promise<TrendsResponse> {
   const response = await fetch(`${API_BASE}/api/trends`);
-  return response.json();  // 型安全
+  return response.json(); // 型安全
 }
 ```
 
@@ -594,25 +616,28 @@ export async function getTrends(): Promise<TrendsResponse> {
 
 ### 実行時間
 
-| 処理 | 時間 |
-|---|---|
-| データ収集（500リポジトリ） | 約20秒 |
-| データベース保存 | 約60秒 |
-| 合計 | **約80秒/日** |
+| 処理                        | 時間          |
+| --------------------------- | ------------- |
+| データ収集（500リポジトリ） | 約20秒        |
+| データベース保存            | 約60秒        |
+| 合計                        | **約80秒/日** |
 
 ### 無料枠の余裕度
 
 **Cloudflare Workers**:
+
 - 制限: 10万リクエスト/日
 - 使用: 数百リクエスト/日（API呼び出し）
 - **余裕度: 99%以上**
 
 **Cloudflare D1**:
+
 - 制限: 500万読み取り/日、10万書き込み/日
 - 使用: 1000書き込み/日、数千読み取り/日
 - **余裕度: 99%以上**
 
 **GitHub Actions**:
+
 - 制限: パブリックリポジトリは無制限
 - 使用: 約2分/日
 - **余裕度: 無制限**
@@ -626,17 +651,20 @@ export async function getTrends(): Promise<TrendsResponse> {
 ## 今後の拡張案
 
 ### 短期的な改善
+
 - エラー通知（Slack/Discord連携）
 - データ収集時間の最適化
 - フロントエンドのビルド最適化
 
 ### 中期的な機能追加
+
 - 時系列グラフ（Recharts）でスター推移を可視化
 - 7日間のスター増加率計算
 - リポジトリ詳細ページ
 - 検索・フィルタ機能の強化
 
 ### 長期的な展開
+
 - Cloudflare Pages へのデプロイ
 - カスタムドメイン設定
 - ユーザー認証とお気に入り機能

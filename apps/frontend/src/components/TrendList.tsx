@@ -37,11 +37,7 @@ export default function TrendList({ initialTrends }: Props) {
           {trends.map((trend) => (
             <tr key={trend.repoId}>
               <td>
-                <a
-                  href={trend.htmlUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <a href={trend.htmlUrl} target="_blank" rel="noopener noreferrer">
                   {trend.fullName}
                 </a>
               </td>
@@ -52,9 +48,7 @@ export default function TrendList({ initialTrends }: Props) {
                   <span style={{ color: '#999' }}>N/A</span>
                 )}
               </td>
-              <td className="star-count">
-                ⭐ {trend.currentStars?.toLocaleString() || 0}
-              </td>
+              <td className="star-count">⭐ {trend.currentStars?.toLocaleString() || 0}</td>
               <td style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {trend.description || <em style={{ color: '#999' }}>No description</em>}
               </td>

@@ -21,20 +21,14 @@ export default function LanguageFilter({ languages, currentLanguage }: Props) {
   };
 
   // Filter out null languages and sort
-  const validLanguages = languages
-    .filter((lang): lang is string => lang !== null)
-    .sort();
+  const validLanguages = languages.filter((lang): lang is string => lang !== null).sort();
 
   return (
     <div style={{ marginBottom: '1rem' }}>
       <label htmlFor="language-filter" style={{ marginRight: '0.5rem', fontWeight: 500 }}>
         Filter by Language:
       </label>
-      <select
-        id="language-filter"
-        onChange={handleChange}
-        defaultValue={currentLanguage || ''}
-      >
+      <select id="language-filter" onChange={handleChange} defaultValue={currentLanguage || ''}>
         <option value="">All Languages</option>
         {validLanguages.map((lang) => (
           <option key={lang} value={lang}>
