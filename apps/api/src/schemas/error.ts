@@ -1,5 +1,5 @@
 /**
- * エラーレスポンスのZodスキーマ定義
+ * エラーレスポンスのZodスキーマ定義（ランタイムバリデーション用）
  */
 import { z } from 'zod';
 
@@ -23,18 +23,9 @@ export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
  * API エラーレスポンススキーマ
  */
 export const ApiErrorSchema = z.object({
-  error: z.string().openapi({
-    description: 'エラーメッセージ',
-    example: 'Failed to fetch trends',
-  }),
-  code: ErrorCodeSchema.optional().openapi({
-    description: 'エラーコード',
-    example: 'DB_ERROR',
-  }),
-  traceId: z.string().optional().openapi({
-    description: 'トレース用ID（デバッグ用）',
-    example: 'abc123-def456',
-  }),
+  error: z.string(),
+  code: ErrorCodeSchema.optional(),
+  traceId: z.string().optional(),
 });
 
 export type ApiError = z.infer<typeof ApiErrorSchema>;

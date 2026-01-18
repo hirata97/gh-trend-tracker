@@ -5,7 +5,7 @@
   "description": "GitHub Trends Tracker - Visualize GitHub repository trends with quantitative metrics",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "shared"
   ],
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
