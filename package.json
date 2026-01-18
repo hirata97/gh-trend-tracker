@@ -17,6 +17,7 @@
     "deploy:backend": "npm run deploy -w apps/backend",
     "deploy:frontend": "npm run deploy -w apps/frontend",
     "test:backend": "npm run test -w apps/backend",
+    "collect": "npm run collect -w apps/backend",
     "test": "npm run test --workspaces --if-present",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

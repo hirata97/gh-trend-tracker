@@ -1,11 +1,15 @@
 /**
- * Database Manager
- * Handles insertion of repository data into D1 database
+ * データベースマネージャー
+ * Drizzle ORMを使用してD1データベースにリポジトリデータを挿入する
+ *
+ * wranglerのgetPlatformProxyを使用してCLIスクリプトからローカル/リモートの
+ * D1データベースに接続し、安全なパラメータ化クエリを実行する
  */
 
-import { execSync } from 'child_process';
-import { writeFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { getPlatformProxy } from 'wrangler';
+import { drizzle } from 'drizzle-orm/d1';
+import type { DrizzleD1Database } from 'drizzle-orm/d1';
+import { repositories, repoSnapshots } from '../../src/db/schema.js';
 import type { GitHubRepo } from './github-client.js';
 
 export interface DbConfig {
@@ -15,28 +19,59 @@ export interface DbConfig {
 
 export class DatabaseManager {
   private config: DbConfig;
+  private db: DrizzleD1Database | null = null;
+  private proxy: Awaited<ReturnType<typeof getPlatformProxy>> | null = null;
 
   constructor(config: DbConfig) {
     this.config = config;
   }
 
   /**
-   * Get today's date in ISO format (YYYY-MM-DD)
+   * wranglerのgetPlatformProxyを使用してデータベース接続を初期化
+   */
+  async initialize(): Promise<void> {
+    this.proxy = await getPlatformProxy({
+      persist: { path: '.wrangler/state/v3' },
+    });
+
+    const d1 = this.proxy.env.DB as D1Database;
+    if (!d1) {
+      throw new Error('D1データベースバインディングが見つかりません。wrangler.jsoncの設定を確認してください。');
+    }
+
+    this.db = drizzle(d1);
+  }
+
+  /**
+   * プロキシ接続をクリーンアップ
+   */
+  async dispose(): Promise<void> {
+    if (this.proxy) {
+      await this.proxy.dispose();
+      this.proxy = null;
+      this.db = null;
+    }
+  }
+
+  /**
+   * データベースインスタンスを取得
+   */
+  private getDb(): DrizzleD1Database {
+    if (!this.db) {
+      throw new Error('データベースが初期化されていません。先にinitialize()を呼び出してください。');
+    }
+    return this.db;
+  }
+
+  /**
+   * 今日の日付をISO形式（YYYY-MM-DD）で取得
    */
   private getTodayISO(): string {
     return new Date().toISOString().split('T')[0];
   }
 
   /**
-   * Escape single quotes in SQL strings
-   */
-  private escapeSql(value: string | null): string {
-    if (value === null) return 'NULL';
-    return `'${value.replace(/'/g, "''")}'`;
-  }
-
-  /**
-   * Transform GitHub repo data to repository table format
+   * GitHubリポジトリデータをrepositoriesテーブル形式に変換
    */
   private transformToRepository(repo: GitHubRepo): {
     repoId: number;
@@ -69,7 +104,7 @@ export class DatabaseManager {
   }
 
   /**
-   * Transform GitHub repo data to snapshot table format
+   * GitHubリポジトリデータをrepo_snapshotsテーブル形式に変換
    */
   private transformToSnapshot(
     repo: GitHubRepo,
@@ -95,86 +130,45 @@ export class DatabaseManager {
   }
 
   /**
-   * Generate SQL INSERT statement for a repository (with UPSERT logic)
+   * Drizzle ORMを使用してリポジトリを挿入または更新（upsert）
    */
-  private generateRepositoryInsert(repo: GitHubRepo): string {
+  private async upsertRepository(repo: GitHubRepo): Promise<void> {
+    const db = this.getDb();
     const data = this.transformToRepository(repo);
 
-    // Use INSERT OR REPLACE to handle duplicates
-    return `INSERT OR REPLACE INTO repositories (
-      repo_id, name, full_name, owner, language, description,
-      html_url, homepage, topics, created_at, updated_at, pushed_at
-    ) VALUES (
-      ${data.repoId},
-      ${this.escapeSql(data.name)},
-      ${this.escapeSql(data.fullName)},
-      ${this.escapeSql(data.owner)},
-      ${this.escapeSql(data.language)},
-      ${this.escapeSql(data.description)},
-      ${this.escapeSql(data.htmlUrl)},
-      ${this.escapeSql(data.homepage)},
-      ${this.escapeSql(data.topics)},
-      ${this.escapeSql(data.createdAt)},
-      ${this.escapeSql(data.updatedAt)},
-      ${this.escapeSql(data.pushedAt)}
-    );`;
+    // SQLiteのupsert動作のためINSERT OR REPLACEを使用
+    await db.insert(repositories).values(data).onConflictDoUpdate({
+      target: repositories.repoId,
+      set: {
+        name: data.name,
+        fullName: data.fullName,
+        owner: data.owner,
+        language: data.language,
+        description: data.description,
+        htmlUrl: data.htmlUrl,
+        homepage: data.homepage,
+        topics: data.topics,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        pushedAt: data.pushedAt,
+      },
+    });
   }
 
   /**
-   * Generate SQL INSERT statement for a snapshot (with conflict handling)
+   * Drizzle ORMを使用してスナップショットを挿入（重複は無視）
    */
-  private generateSnapshotInsert(repo: GitHubRepo, snapshotDate: string): string {
+  private async insertSnapshotIfNotExists(repo: GitHubRepo, snapshotDate: string): Promise<void> {
+    const db = this.getDb();
     const data = this.transformToSnapshot(repo, snapshotDate);
 
-    // Use INSERT OR IGNORE to respect UNIQUE(repo_id, snapshot_date) constraint
-    return `INSERT OR IGNORE INTO repo_snapshots (
-      repo_id, stars, forks, watchers, open_issues, snapshot_date, created_at
-    ) VALUES (
-      ${data.repoId},
-      ${data.stars},
-      ${data.forks},
-      ${data.watchers},
-      ${data.openIssues},
-      ${this.escapeSql(data.snapshotDate)},
-      ${this.escapeSql(data.createdAt)}
-    );`;
+    // SQLiteのINSERT OR IGNOREを使用 - 重複キーが存在する場合は無視
+    await db.insert(repoSnapshots).values(data).onConflictDoNothing();
   }
 
   /**
-   * Execute SQL commands via wrangler CLI using a temporary file
-   */
-  private executeSQLFile(sqlStatements: string[]): void {
-    const remoteFlag = this.config.useRemote ? '--remote' : '--local';
-    const tempFile = join(process.cwd(), '.temp-insert.sql');
-
-    try {
-      // Write all SQL statements to temporary file
-      const sqlContent = sqlStatements.join('\n');
-      writeFileSync(tempFile, sqlContent, 'utf-8');
-
-      // Execute via wrangler
-      const command = `npx wrangler d1 execute ${this.config.databaseName} --file=${tempFile} ${remoteFlag}`;
-      execSync(command, { stdio: 'inherit', cwd: process.cwd() });
-
-      // Clean up temp file
-      unlinkSync(tempFile);
-    } catch (error) {
-      // Clean up temp file even on error
-      try {
-        unlinkSync(tempFile);
-      } catch {
-        // Ignore cleanup errors
-      }
-
-      throw new Error(
-        `Database execution failed: ${error instanceof Error ? error.message : error}`
-      );
-    }
-  }
-
-  /**
-   * Save a batch of repositories and their snapshots to the database
-   * Uses bulk insert for better performance
+   * リポジトリとスナップショットのバッチをデータベースに保存
+   * Drizzle ORMによる安全なパラメータ化クエリを使用
    */
   async saveRepos(repos: GitHubRepo[]): Promise<{
     success: number;
@@ -186,29 +180,33 @@ export class DatabaseManager {
     }
 
     const snapshotDate = this.getTodayISO();
-    const sqlStatements: string[] = [];
+    let successCount = 0;
+    const errors: string[] = [];
 
-    // Generate all SQL statements
     for (const repo of repos) {
-      // Insert repository (upsert)
-      sqlStatements.push(this.generateRepositoryInsert(repo));
+      try {
+        // リポジトリをupsert
+        await this.upsertRepository(repo);
 
-      // Insert snapshot (ignore if exists)
-      sqlStatements.push(this.generateSnapshotInsert(repo, snapshotDate));
+        // スナップショットを挿入（既存の場合は無視）
+        await this.insertSnapshotIfNotExists(repo, snapshotDate);
+
+        successCount++;
+      } catch (error) {
+        const errorMsg = `リポジトリ ${repo.full_name} の保存に失敗: ${error instanceof Error ? error.message : error}`;
+        errors.push(errorMsg);
+      }
     }
 
-    // Execute all statements in one batch
-    try {
-      this.executeSQLFile(sqlStatements);
-      return { success: repos.length, failed: 0, errors: [] };
-    } catch (error) {
-      const errorMsg = `Bulk insert failed: ${error instanceof Error ? error.message : error}`;
-      return { success: 0, failed: repos.length, errors: [errorMsg] };
-    }
+    return {
+      success: successCount,
+      failed: repos.length - successCount,
+      errors,
+    };
   }
 
   /**
-   * Save repos grouped by language
+   * 言語ごとにグループ化されたリポジトリを保存
    */
   async saveReposByLanguage(reposByLanguage: Map<string, GitHubRepo[]>): Promise<{
     totalSuccess: number;
@@ -220,17 +218,17 @@ export class DatabaseManager {
     const allErrors: string[] = [];
 
     for (const [language, repos] of reposByLanguage.entries()) {
-      console.log(`Saving ${repos.length} ${language} repositories...`);
+      console.log(`${repos.length}件の${language}リポジトリを保存中...`);
       const result = await this.saveRepos(repos);
       totalSuccess += result.success;
       totalFailed += result.failed;
       allErrors.push(...result.errors);
 
       if (result.success > 0) {
-        console.log(`✓ Saved ${result.success}/${repos.length} ${language} repos`);
+        console.log(`✓ ${result.success}/${repos.length}件の${language}リポジトリを保存`);
       }
       if (result.failed > 0) {
-        console.log(`✗ Failed ${result.failed}/${repos.length} ${language} repos`);
+        console.log(`✗ ${result.failed}/${repos.length}件の${language}リポジトリが失敗`);
       }
     }
 
