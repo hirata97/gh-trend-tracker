@@ -65,10 +65,16 @@ paths:
       tags:
         - Health
       summary: ヘルスチェック
-      description: APIサーバーの稼働状態を確認します
+      description: |
+        APIサーバーの稼働状態とデータベース接続状態を確認します。
+
+        - status: ok - サービスが正常に稼働中
+        - status: unhealthy - サービスに問題がある（DB接続エラーなど）
+        - database: connected - データベース接続が正常
+        - database: disconnected - データベース接続に問題あり
       responses:
         200:
-          description: サービスが正常に稼働中
+          description: サービスが正常に稼働中（データベース接続OK）
           content:
             application/json:
               schema:
@@ -76,15 +82,55 @@ paths:
                 properties:
                   status:
                     type: string
+                    enum:
+                      - ok
+                      - unhealthy
                     description: サービスの状態
                     example: ok
                   timestamp:
                     type: string
                     description: 現在のタイムスタンプ（ISO 8601形式）
                     example: "2026-01-17T12:00:00.000Z"
+                  database:
+                    type: string
+                    enum:
+                      - connected
+                      - disconnected
+                    description: データベース接続状態
+                    example: connected
                 required:
                   - status
                   - timestamp
+                  - database
+        503:
+          description: サービスが異常状態（データベース接続エラー）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ok
+                      - unhealthy
+                    description: サービスの状態
+                    example: unhealthy
+                  timestamp:
+                    type: string
+                    description: 現在のタイムスタンプ（ISO 8601形式）
+                    example: "2026-01-17T12:00:00.000Z"
+                  database:
+                    type: string
+                    enum:
+                      - connected
+                      - disconnected
+                    description: データベース接続状態
+                    example: disconnected
+                required:
+                  - status
+                  - timestamp
+                  - database
   /api/trends:
     get:
       tags:

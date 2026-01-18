@@ -57,8 +57,9 @@ export interface LanguagesResponse {
 }
 
 export interface HealthResponse {
-  status: string;
+  status: 'ok' | 'unhealthy';
   timestamp: string;
+  database: 'connected' | 'disconnected';
 }
 
 export interface ErrorResponse {
