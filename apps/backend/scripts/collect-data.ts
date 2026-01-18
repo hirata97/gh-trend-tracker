@@ -125,7 +125,7 @@ async function main() {
   let totalRepos = 0;
   let successfulLanguages = 0;
 
-  for (const [language, repos] of reposByLanguage.entries()) {
+  for (const repos of reposByLanguage.values()) {
     totalRepos += repos.length;
     if (repos.length > 0) {
       successfulLanguages++;

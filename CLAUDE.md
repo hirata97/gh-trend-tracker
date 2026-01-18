@@ -207,6 +207,9 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - 複数ルートで使用するクエリは`apps/backend/src/shared/queries.ts`に追加
 - Backend/Frontend間で共有する型は`shared/src/index.ts`に定義
 - 全ての共有型は`@gh-trend-tracker/shared`からimport
+- **未使用変数**: アンダースコアプレフィックス（`_var`）で回避せず、根本的に解決する
+  - 例: `for (const [_key, value] of map.entries())` → `for (const value of map.values())`
+  - コールバックで位置が固定される場合のみ例外的に許可（例: `array.map((_item, index) => index)`）
 
 ## 開発プロセス
 

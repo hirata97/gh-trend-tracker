@@ -8,6 +8,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "type-check": "astro check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "deploy": "echo \"Deploy not yet configured\""
   },
   "dependencies": {

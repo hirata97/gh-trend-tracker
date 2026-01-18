@@ -8,6 +8,8 @@
     "start": "wrangler dev",
     "test": "vitest",
     "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "cf-typegen": "wrangler types",
     "collect": "tsx scripts/collect-data.ts"
   },
