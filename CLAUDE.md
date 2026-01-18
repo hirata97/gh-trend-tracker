@@ -7,6 +7,7 @@
 GitHub Trend Trackerは、GitHubリポジトリのトレンドを定量指標として抽出・可視化するWebサービスです。スケーラブルなモノレポ構成（apps/ + shared/）を採用し、プロジェクト間共有とプロジェクト内共有を明確に分離しています。
 
 **技術スタック:**
+
 - **Backend**: Cloudflare Workers + Hono + Drizzle ORM + Cloudflare D1 (SQLite)
 - **Frontend**: Astro + React
 - **共通**: TypeScript（厳格モード有効）
@@ -120,11 +121,11 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --local
 
 このプロジェクトは**2階層の共有構造**を採用：
 
-| 配置場所 | 用途 | 例 |
-|----------|------|-----|
-| `apps/backend/src/shared/` | **Backend内でのみ**使用するコード | DBクエリ関数、API固有ユーティリティ |
-| `apps/frontend/src/shared/` | **Frontend内でのみ**使用するコード | UIユーティリティ、フォーマッター |
-| `shared/` | **複数アプリ間**で共有する型定義 | APIレスポンス型、共通エンティティ型 |
+| 配置場所                    | 用途                               | 例                                  |
+| --------------------------- | ---------------------------------- | ----------------------------------- |
+| `apps/backend/src/shared/`  | **Backend内でのみ**使用するコード  | DBクエリ関数、API固有ユーティリティ |
+| `apps/frontend/src/shared/` | **Frontend内でのみ**使用するコード | UIユーティリティ、フォーマッター    |
+| `shared/`                   | **複数アプリ間**で共有する型定義   | APIレスポンス型、共通エンティティ型 |
 
 **判断基準**: 2つ以上のアプリで使用する場合のみ `shared/` に配置する。
 
@@ -132,10 +133,10 @@ npx wrangler d1 execute gh-trends-db --file=schema/schema.sql --local
 
 ```typescript
 // apps/backend/src/routes/trends.ts
-import type { TrendsResponse } from '@gh-trend-tracker/shared'
+import type { TrendsResponse } from '@gh-trend-tracker/shared';
 
 // apps/frontend/src/lib/api.ts
-import type { TrendsResponse } from '@gh-trend-tracker/shared'
+import type { TrendsResponse } from '@gh-trend-tracker/shared';
 ```
 
 ### データベーススキーマ
@@ -143,10 +144,12 @@ import type { TrendsResponse } from '@gh-trend-tracker/shared'
 スナップショットベースのアプローチで2つのメインテーブルを使用：
 
 **repositories**: GitHubリポジトリの静的メタデータ
+
 - 格納内容: repo_id, name, full_name, owner, language, description, html_url, topics
 - インデックス: language, updated_at
 
 **repo_snapshots**: リポジトリ指標の日次スナップショット
+
 - 格納内容: repo_id (FK), stars, forks, watchers, open_issues, snapshot_date
 - (repo_id, snapshot_date)のUNIQUE制約により1日1スナップショットを保証
 - インデックス: snapshot_date, (repo_id, snapshot_date)
@@ -166,43 +169,51 @@ import type { TrendsResponse } from '@gh-trend-tracker/shared'
 ### バインディングと環境変数
 
 Cloudflare WorkerはD1データベースバインディングを使用：
+
 - **バインディング名**: `DB`（型: `D1Database`）
 - **データベース名**: `gh-trends-db`
 - `wrangler.jsonc`で設定
 
 環境変数（ローカル開発用に`apps/backend/.env`に格納）：
+
 - `GITHUB_TOKEN` - GitHub Personal Access Token
 
 ### TypeScript設定
 
 **ルート (`tsconfig.base.json`)**:
+
 - 共通設定を定義
 - 各アプリがextendsして使用
 
 **Backend (`apps/backend/tsconfig.json`)**:
+
 - `tsconfig.base.json`を継承
 - Cloudflare Workers固有の設定
 - パスエイリアス: `@gh-trend-tracker/shared`
 
 **Frontend (`apps/frontend/tsconfig.json`)**:
+
 - Astro設定を継承
 - パスエイリアス: `@gh-trend-tracker/shared`
 
 ## 主要な制約事項
 
 ### データベース制約
+
 - 1リポジトリにつき1日1スナップショット（UNIQUE制約で強制）
 - repo_snapshots.repo_idからrepositories.repo_idへの外部キー、CASCADE削除
 - スナップショット日付はISO日付文字列（YYYY-MM-DD）で格納
 - タイムスタンプはISO 8601形式のTEXT型を使用
 
 ### Cloudflare Workers制限事項
+
 - D1クエリは非同期でPromiseを返す
 - D1には読み取り/書き込み制限あり（無料枠で500万回読み取り/日、10万回書き込み/日）
 - Worker実行時間制限: 無料枠で50ms CPU時間
 - 大規模テーブルの全クエリにインデックスを使用
 
 ### コーディング規約
+
 - 新しいエンドポイントは`apps/backend/src/routes/`に追加
 - 複数ルートで使用するクエリは`apps/backend/src/shared/queries.ts`に追加
 - Backend/Frontend間で共有する型は`shared/src/index.ts`に定義
@@ -216,6 +227,7 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 新規機能追加や大規模な改修を行う前に、`docs/development-process.md`を参照してください。
 
 **重要**: 特に以下の項目は着手前に必ず検討すること
+
 - 目的・価値定義（なぜ作るのか）
 - 非機能要件（パフォーマンス、セキュリティ）
 - データ設計（後から変更しにくい）
@@ -233,9 +245,9 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 現時点ではTurborepoを導入せず、npm workspacesのみで運用する。
 以下の条件を満たした場合に導入を検討する。
 
-| 条件 | 現状 | 閾値 |
-|------|------|------|
-| アプリ数 | 2（backend, frontend） | **3以上** |
-| 全体ビルド時間 | 数秒 | **1分以上** |
-| 開発者数 | 1人 | **3人以上** |
-| キャッシュ要求 | 不要 | リモートキャッシュ必要時 |
+| 条件           | 現状                   | 閾値                     |
+| -------------- | ---------------------- | ------------------------ |
+| アプリ数       | 2（backend, frontend） | **3以上**                |
+| 全体ビルド時間 | 数秒                   | **1分以上**              |
+| 開発者数       | 1人                    | **3人以上**              |
+| キャッシュ要求 | 不要                   | リモートキャッシュ必要時 |

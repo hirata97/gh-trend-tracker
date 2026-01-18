@@ -1,7 +1,7 @@
 name: 🚀 改善提案
 description: 既存機能の改善や最適化を提案する
-title: "[Enhancement] "
-labels: ["type-basic:enhancement"]
+title: '[Enhancement] '
+labels: ['type-basic:enhancement']
 assignees: []
 
 body:

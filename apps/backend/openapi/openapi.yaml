@@ -3,52 +3,52 @@ info:
   title: GitHub Trend Tracker API
   version: 1.0.0
   description: |
-      GitHubリポジトリのトレンドを取得するAPI
-      
-      ## 概要
-      GitHub Trend Tracker APIは、GitHubリポジトリのトレンド情報を提供します。
-      トレンドデータは日次で収集され、過去90日間の履歴を参照できます。
-      
-      ## 主な機能
-      - 全言語のトレンドリポジトリ取得
-      - 言語別トレンドリポジトリ取得
-      - リポジトリの履歴データ取得
-      - 対応言語一覧の取得
-      
-      ## 制限事項
-      - トレンドエンドポイント: 上位100件まで
-      - 履歴エンドポイント: 過去90日間まで
-      
-      ## エラーレスポンス
-      すべてのエンドポイントは、エラー発生時に以下の形式でレスポンスを返します:
-      
-      ```json
-      {
-        "error": "エラーメッセージ",
-        "code": "ERROR_CODE",
-        "traceId": "abc123-def456"
-      }
-      ```
-      
-      ### エラーコード一覧
-      - `VALIDATION_ERROR`: 入力バリデーションエラー
-      - `NOT_FOUND`: リソースが見つからない
-      - `DB_ERROR`: データベースエラー
-      - `INTERNAL_ERROR`: 内部サーバーエラー
-      
+    GitHubリポジトリのトレンドを取得するAPI
+
+    ## 概要
+    GitHub Trend Tracker APIは、GitHubリポジトリのトレンド情報を提供します。
+    トレンドデータは日次で収集され、過去90日間の履歴を参照できます。
+
+    ## 主な機能
+    - 全言語のトレンドリポジトリ取得
+    - 言語別トレンドリポジトリ取得
+    - リポジトリの履歴データ取得
+    - 対応言語一覧の取得
+
+    ## 制限事項
+    - トレンドエンドポイント: 上位100件まで
+    - 履歴エンドポイント: 過去90日間まで
+
+    ## エラーレスポンス
+    すべてのエンドポイントは、エラー発生時に以下の形式でレスポンスを返します:
+
+    ```json
+    {
+      "error": "エラーメッセージ",
+      "code": "ERROR_CODE",
+      "traceId": "abc123-def456"
+    }
+    ```
+
+    ### エラーコード一覧
+    - `VALIDATION_ERROR`: 入力バリデーションエラー
+    - `NOT_FOUND`: リソースが見つからない
+    - `DB_ERROR`: データベースエラー
+    - `INTERNAL_ERROR`: 内部サーバーエラー
+
   contact:
     name: GitHub Trend Tracker
-    url: "https://github.com/hirata97/gh-trend-tracker"
+    url: 'https://github.com/hirata97/gh-trend-tracker'
   license:
     name: MIT
 servers:
-  - url: "https://gh-trend-tracker.{user}.workers.dev"
+  - url: 'https://gh-trend-tracker.{user}.workers.dev'
     description: Production server
     variables:
       user:
         default: your-username
         description: Cloudflare Workersのユーザー名
-  - url: "http://localhost:8787"
+  - url: 'http://localhost:8787'
     description: Local development server
 tags:
   - name: Health
@@ -90,7 +90,7 @@ paths:
                   timestamp:
                     type: string
                     description: 現在のタイムスタンプ（ISO 8601形式）
-                    example: "2026-01-17T12:00:00.000Z"
+                    example: '2026-01-17T12:00:00.000Z'
                   database:
                     type: string
                     enum:
@@ -119,7 +119,7 @@ paths:
                   timestamp:
                     type: string
                     description: 現在のタイムスタンプ（ISO 8601形式）
-                    example: "2026-01-17T12:00:00.000Z"
+                    example: '2026-01-17T12:00:00.000Z'
                   database:
                     type: string
                     enum:
@@ -186,7 +186,7 @@ paths:
                           type: string
                           format: uri
                           description: GitHubリポジトリURL
-                          example: "https://github.com/facebook/react"
+                          example: 'https://github.com/facebook/react'
                         currentStars:
                           type: integer
                           nullable: true
@@ -299,7 +299,7 @@ paths:
                           type: string
                           format: uri
                           description: GitHubリポジトリURL
-                          example: "https://github.com/facebook/react"
+                          example: 'https://github.com/facebook/react'
                         currentStars:
                           type: integer
                           nullable: true
@@ -415,7 +415,7 @@ paths:
                         createdAt:
                           type: string
                           description: 作成日時（ISO 8601形式）
-                          example: "2026-01-17T00:00:00Z"
+                          example: '2026-01-17T00:00:00Z'
                       required:
                         - id
                         - repoId

@@ -24,6 +24,7 @@ GitHub Actionsを動作させるには、以下の3つのシークレットをGi
 データ収集用のGitHub APIアクセストークン
 
 **取得方法:**
+
 1. https://github.com/settings/tokens にアクセス
 2. **"Generate new token (classic)"** をクリック
 3. 設定:
@@ -38,6 +39,7 @@ GitHub Actionsを動作させるには、以下の3つのシークレットをGi
 Cloudflare WorkersへのデプロイとD1データベースアクセス用
 
 **取得方法:**
+
 1. https://dash.cloudflare.com/profile/api-tokens にアクセス
 2. **"Create Token"** をクリック
 3. **"Edit Cloudflare Workers"** テンプレートを選択
@@ -52,6 +54,7 @@ Cloudflare WorkersへのデプロイとD1データベースアクセス用
 あなたのCloudflareアカウントID
 
 **取得方法:**
+
 1. https://dash.cloudflare.com にアクセス
 2. 任意のサイト/Workers & Pagesページを開く
 3. 右サイドバーの **"Account ID"** をコピー
@@ -143,6 +146,7 @@ npx wrangler d1 execute gh-trends-db \
 3. 各ステップの詳細ログを確認
 
 **期待される出力:**
+
 ```
 ✓ Fetched 500 repos
 ✓ Saved 500 repos
@@ -152,13 +156,16 @@ npx wrangler d1 execute gh-trends-db \
 ### エラー時の対処
 
 **エラー: `Error: GITHUB_TOKEN environment variable is required`**
+
 - シークレット `GH_TRENDS_TOKEN` が正しく設定されているか確認
 
 **エラー: `Authentication error: Invalid API token`**
+
 - シークレット `CLOUDFLARE_API_TOKEN` が正しいか確認
 - トークンの権限が適切か確認（D1とWorkers編集権限）
 
 **エラー: `Database not found`**
+
 - リモートD1データベースが作成されているか確認
 - `wrangler.jsonc` の `database_id` が正しいか確認
 
@@ -186,6 +193,7 @@ schedule:
 ```
 
 **Cron式の形式:**
+
 ```
 分 時 日 月 曜日
 0  0  *  *  *
@@ -230,11 +238,13 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 ### 3. データベース容量の確認
 
 D1の無料枠:
+
 - 5GB ストレージ
 - 500万読み取り/日
 - 10万書き込み/日
 
 容量監視:
+
 ```bash
 npx wrangler d1 execute gh-trends-db \
   --command="SELECT COUNT(*) FROM repositories" \
@@ -261,6 +271,7 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 
 **原因:** GitHub APIの制限（5000リクエスト/時）
 **解決:**
+
 - トークンが正しく設定されているか確認
 - レート制限をチェック
 - 必要に応じてリクエスト数を減らす
@@ -270,6 +281,7 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 これで毎日自動的にGitHubトレンドデータが収集され、リモートD1データベースに保存されます。
 
 **次のステップ:**
+
 1. フロントエンドをCloudflare Pagesにデプロイ
 2. リモートD1データベースに接続
 3. 本番環境でMVP完成！

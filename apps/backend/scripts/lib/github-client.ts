@@ -94,9 +94,7 @@ export class GitHubClient {
 
         if (!response.ok) {
           const errorBody = await response.text();
-          throw new Error(
-            `GitHub API error (${response.status}): ${errorBody}`
-          );
+          throw new Error(`GitHub API error (${response.status}): ${errorBody}`);
         }
 
         const data: SearchResponse = await response.json();

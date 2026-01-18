@@ -31,10 +31,7 @@ export async function getTrendsByLanguage(
     .from(repositories)
     .leftJoin(
       repoSnapshots,
-      and(
-        eq(repositories.repoId, repoSnapshots.repoId),
-        eq(repoSnapshots.snapshotDate, today)
-      )
+      and(eq(repositories.repoId, repoSnapshots.repoId), eq(repoSnapshots.snapshotDate, today))
     )
     .where(eq(repositories.language, language))
     .orderBy(desc(repoSnapshots.stars))
@@ -61,10 +58,7 @@ export async function getAllTrends(db: DrizzleD1Database, limit: number = 100) {
     .from(repositories)
     .leftJoin(
       repoSnapshots,
-      and(
-        eq(repositories.repoId, repoSnapshots.repoId),
-        eq(repoSnapshots.snapshotDate, today)
-      )
+      and(eq(repositories.repoId, repoSnapshots.repoId), eq(repoSnapshots.snapshotDate, today))
     )
     .orderBy(desc(repoSnapshots.stars))
     .limit(limit);

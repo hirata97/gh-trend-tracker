@@ -34,7 +34,9 @@ export const repoSnapshots = sqliteTable(
     watchers: integer('watchers').notNull().default(0),
     openIssues: integer('open_issues').notNull().default(0),
     snapshotDate: text('snapshot_date').notNull(),
-    createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
   },
   (table) => ({
     dateIdx: index('idx_snapshots_date').on(table.snapshotDate),

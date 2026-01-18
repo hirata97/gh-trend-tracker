@@ -210,9 +210,7 @@ export class DatabaseManager {
   /**
    * Save repos grouped by language
    */
-  async saveReposByLanguage(
-    reposByLanguage: Map<string, GitHubRepo[]>
-  ): Promise<{
+  async saveReposByLanguage(reposByLanguage: Map<string, GitHubRepo[]>): Promise<{
     totalSuccess: number;
     totalFailed: number;
     errors: string[];
