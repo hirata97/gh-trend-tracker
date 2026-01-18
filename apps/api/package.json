@@ -9,8 +9,7 @@
     "test": "vitest",
     "type-check": "tsc --noEmit",
     "cf-typegen": "wrangler types",
-    "collect": "tsx scripts/collect-data.ts",
-    "generate-openapi": "tsx scripts/generate-openapi.ts"
+    "collect": "tsx scripts/collect-data.ts"
   },
   "dependencies": {
     "@gh-trend-tracker/shared-types": "*",
