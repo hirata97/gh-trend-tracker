@@ -59,11 +59,6 @@ tags:
     description: リポジトリ情報取得エンドポイント
   - name: Languages
     description: 言語一覧取得エンドポイント
-components:
-  schemas:
-{}
-  parameters:
-{}
 paths:
   /health:
     get:
