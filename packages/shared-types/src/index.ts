@@ -64,3 +64,23 @@ export interface HealthResponse {
 export interface ErrorResponse {
   error: string;
 }
+
+/**
+ * API エラーレスポンス型（OpenAPI準拠）
+ *
+ * エラーコード一覧:
+ * - VALIDATION_ERROR: 入力バリデーションエラー
+ * - NOT_FOUND: リソースが見つからない
+ * - DB_ERROR: データベースエラー
+ * - INTERNAL_ERROR: 内部サーバーエラー
+ */
+export type ErrorCode = 'VALIDATION_ERROR' | 'NOT_FOUND' | 'DB_ERROR' | 'INTERNAL_ERROR';
+
+export interface ApiError {
+  /** エラーメッセージ */
+  error: string;
+  /** エラーコード（オプション） */
+  code?: ErrorCode;
+  /** トレース用ID（デバッグ用、オプション） */
+  traceId?: string;
+}
