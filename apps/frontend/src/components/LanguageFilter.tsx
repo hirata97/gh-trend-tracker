@@ -2,6 +2,7 @@
  * LanguageFilter Component
  * Dropdown to filter repositories by programming language
  */
+import { navigate } from 'astro:transitions/client';
 
 interface Props {
   languages: (string | null)[];
@@ -12,12 +13,9 @@ export default function LanguageFilter({ languages, currentLanguage }: Props) {
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const language = e.target.value;
 
-    // Reload page with language parameter
-    if (language === '') {
-      window.location.href = '/';
-    } else {
-      window.location.href = `/?language=${encodeURIComponent(language)}`;
-    }
+    // Navigate with soft navigation using Astro View Transitions
+    const url = language ? `/?language=${encodeURIComponent(language)}` : '/';
+    navigate(url);
   };
 
   // Filter out null languages and sort
