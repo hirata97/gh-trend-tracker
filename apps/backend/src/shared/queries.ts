@@ -1,4 +1,4 @@
-import { DrizzleD1Database } from 'drizzle-orm/d1';
+import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { desc, eq, and, sql } from 'drizzle-orm';
 import { repositories, repoSnapshots } from '../db/schema';
 
