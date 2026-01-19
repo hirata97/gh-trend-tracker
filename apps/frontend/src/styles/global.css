@@ -118,6 +118,37 @@ input:focus {
   font-weight: 500;
 }
 
+/* Weekly Growth Styles */
+.weekly-growth {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.weekly-growth .growth-value {
+  margin-right: 0.25rem;
+}
+
+.weekly-growth .growth-rate {
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+.growth-high {
+  color: #22863a;
+}
+
+.growth-medium {
+  color: #b08800;
+}
+
+.growth-low {
+  color: #586069;
+}
+
+.growth-neutral {
+  color: #999;
+}
+
 .loading {
   text-align: center;
   padding: 2rem;

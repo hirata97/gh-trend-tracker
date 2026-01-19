@@ -41,6 +41,8 @@ export interface TrendItem {
   htmlUrl: string;
   currentStars: number | null; // LEFT JOINでスナップショットがない場合はnull
   snapshotDate?: string | null;
+  weeklyGrowth: number | null; // 過去7日間のスター増加数
+  weeklyGrowthRate: number | null; // 増加率（%）
 }
 
 export interface TrendsResponse {
