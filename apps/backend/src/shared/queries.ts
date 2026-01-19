@@ -193,3 +193,81 @@ export async function getAllLanguages(db: DrizzleD1Database) {
 
   return languages.map((l) => l.language);
 }
+
+/**
+ * リポジトリ詳細情報を取得（スター増加率付き）
+ */
+export async function getRepositoryDetail(db: DrizzleD1Database, repoId: number) {
+
+  // リポジトリ基本情報を取得
+  const [repository] = await db
+    .select()
+    .from(repositories)
+    .where(eq(repositories.repoId, repoId))
+    .limit(1);
+
+  if (!repository) {
+    return null;
+  }
+
+  // 今日のスナップショットを取得
+  const [todaySnapshot] = await db
+    .select()
+    .from(repoSnapshots)
+    .where(eq(repoSnapshots.repoId, repoId))
+    .orderBy(desc(repoSnapshots.snapshotDate))
+    .limit(1);
+
+  // 7日前のスナップショットを取得
+  const [weekAgoSnapshot] = await db
+    .select()
+    .from(repoSnapshots)
+    .where(eq(repoSnapshots.repoId, repoId))
+    .orderBy(desc(repoSnapshots.snapshotDate))
+    .offset(6)
+    .limit(1);
+
+  // トピックスをパース
+  let topics: string[] = [];
+  if (repository.topics) {
+    try {
+      topics = JSON.parse(repository.topics);
+    } catch {
+      topics = [];
+    }
+  }
+
+  const weeklyGrowth = calculateWeeklyGrowth(
+    todaySnapshot?.stars ?? null,
+    weekAgoSnapshot?.stars ?? null
+  );
+  const weeklyGrowthRate = calculateWeeklyGrowthRate(
+    todaySnapshot?.stars ?? null,
+    weekAgoSnapshot?.stars ?? null
+  );
+
+  return {
+    repository: {
+      repoId: repository.repoId,
+      name: repository.name,
+      fullName: repository.fullName,
+      owner: repository.owner,
+      language: repository.language,
+      description: repository.description,
+      htmlUrl: repository.htmlUrl,
+      homepage: repository.homepage,
+      topics,
+    },
+    currentStats: todaySnapshot
+      ? {
+          stars: todaySnapshot.stars,
+          forks: todaySnapshot.forks,
+          watchers: todaySnapshot.watchers,
+          openIssues: todaySnapshot.openIssues,
+          snapshotDate: todaySnapshot.snapshotDate,
+        }
+      : null,
+    weeklyGrowth,
+    weeklyGrowthRate,
+  };
+}

@@ -3,7 +3,12 @@
  * Fetches data from the backend API
  */
 
-import type { TrendsResponse, LanguagesResponse, HistoryResponse } from '@gh-trend-tracker/shared';
+import type {
+  TrendsResponse,
+  LanguagesResponse,
+  HistoryResponse,
+  RepoDetailResponse,
+} from '@gh-trend-tracker/shared';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
 
@@ -54,6 +59,23 @@ export async function getRepoHistory(repoId: number): Promise<HistoryResponse> {
 
   if (!response.ok) {
     throw new Error(`Failed to fetch history: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch repository detail
+ * @param repoId - GitHub repository ID
+ * @returns RepoDetailResponse with repository info and stats
+ */
+export async function getRepoDetail(repoId: number): Promise<RepoDetailResponse> {
+  const url = `${API_BASE}/api/repos/${repoId}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch repository detail: ${response.status} ${response.statusText}`);
   }
 
   return response.json();

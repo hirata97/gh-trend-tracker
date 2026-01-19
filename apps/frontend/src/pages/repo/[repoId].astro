@@ -1,0 +1,81 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import RepoDetail from '../../components/RepoDetail';
+import { getTrends, getRepoDetail, getRepoHistory } from '../../lib/api';
+import type { RepoDetailResponse, RepoSnapshot } from '@gh-trend-tracker/shared';
+
+export async function getStaticPaths() {
+  try {
+    const trendsData = await getTrends();
+    const paths = trendsData.trends.map((trend) => ({
+      params: { repoId: String(trend.repoId) },
+    }));
+    return paths;
+  } catch (e) {
+    console.error('Failed to generate static paths:', e);
+    return [];
+  }
+}
+
+// Get repoId from URL parameter
+const { repoId } = Astro.params;
+
+let detail: RepoDetailResponse | null = null;
+let history: { date: string; stars: number }[] = [];
+let error: string | null = null;
+
+if (!repoId || isNaN(Number(repoId))) {
+  error = 'Invalid repository ID';
+} else {
+  try {
+    const repoIdNum = Number(repoId);
+    detail = await getRepoDetail(repoIdNum);
+
+    const historyData = await getRepoHistory(repoIdNum);
+    history = historyData.history
+      .map((snapshot: RepoSnapshot) => ({
+        date: snapshot.snapshotDate,
+        stars: snapshot.stars,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch (e) {
+    error = e instanceof Error ? e.message : 'Failed to load repository';
+    console.error('Failed to fetch repository:', e);
+  }
+}
+
+const title = detail?.repository.fullName
+  ? `${detail.repository.fullName} - GitHub Trends Tracker`
+  : 'Repository - GitHub Trends Tracker';
+---
+
+<Layout title={title}>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="/">Home</a> &gt; Repository Details
+    </nav>
+
+    {error ? (
+      <div class="error">
+        <strong>Error:</strong> {error}
+        <br /><br />
+        <a href="/">Back to Home</a>
+      </div>
+    ) : detail ? (
+      <RepoDetail detail={detail} history={history} client:load />
+    ) : (
+      <div class="loading">Loading...</div>
+    )}
+  </div>
+</Layout>
+
+<style>
+  .breadcrumb {
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+    color: #586069;
+  }
+  .breadcrumb a {
+    color: #0366d6;
+  }
+</style>
