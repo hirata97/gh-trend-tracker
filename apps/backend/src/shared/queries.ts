@@ -1,5 +1,5 @@
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { desc, eq, and, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { repositories, repoSnapshots } from '../db/schema';
 
 /**
@@ -7,7 +7,7 @@ import { repositories, repoSnapshots } from '../db/schema';
  */
 
 /**
- * 指定言語のトレンドランキングを取得
+ * 指定言語のトレンドランキングを取得（スター増加率付き）
  */
 export async function getTrendsByLanguage(
   db: DrizzleD1Database,
@@ -15,8 +15,30 @@ export async function getTrendsByLanguage(
   limit: number = 100
 ) {
   const today = new Date().toISOString().split('T')[0];
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  return await db
+  // 今日のスナップショットをサブクエリとして準備
+  const todaySnapshots = db
+    .select({
+      repoId: repoSnapshots.repoId,
+      stars: repoSnapshots.stars,
+    })
+    .from(repoSnapshots)
+    .where(eq(repoSnapshots.snapshotDate, today))
+    .as('today_snapshots');
+
+  // 7日前のスナップショットをサブクエリとして準備
+  const weekAgoSnapshots = db
+    .select({
+      repoId: repoSnapshots.repoId,
+      stars: repoSnapshots.stars,
+    })
+    .from(repoSnapshots)
+    .where(eq(repoSnapshots.snapshotDate, sevenDaysAgo))
+    .as('week_ago_snapshots');
+
+  // メインクエリ: リポジトリと今日・7日前のスナップショットをJOIN
+  const results = await db
     .select({
       repoId: repositories.repoId,
       name: repositories.name,
@@ -25,26 +47,64 @@ export async function getTrendsByLanguage(
       language: repositories.language,
       description: repositories.description,
       htmlUrl: repositories.htmlUrl,
-      currentStars: repoSnapshots.stars,
-      snapshotDate: repoSnapshots.snapshotDate,
+      currentStars: todaySnapshots.stars,
+      weekAgoStars: weekAgoSnapshots.stars,
     })
     .from(repositories)
-    .leftJoin(
-      repoSnapshots,
-      and(eq(repositories.repoId, repoSnapshots.repoId), eq(repoSnapshots.snapshotDate, today))
-    )
+    .leftJoin(todaySnapshots, eq(repositories.repoId, todaySnapshots.repoId))
+    .leftJoin(weekAgoSnapshots, eq(repositories.repoId, weekAgoSnapshots.repoId))
     .where(eq(repositories.language, language))
-    .orderBy(desc(repoSnapshots.stars))
+    .orderBy(desc(todaySnapshots.stars))
     .limit(limit);
+
+  // 増加率を計算
+  return results.map((item) => {
+    const weeklyGrowth = calculateWeeklyGrowth(item.currentStars, item.weekAgoStars);
+    const weeklyGrowthRate = calculateWeeklyGrowthRate(item.currentStars, item.weekAgoStars);
+    return {
+      repoId: item.repoId,
+      name: item.name,
+      fullName: item.fullName,
+      owner: item.owner,
+      language: item.language,
+      description: item.description,
+      htmlUrl: item.htmlUrl,
+      currentStars: item.currentStars,
+      weeklyGrowth,
+      weeklyGrowthRate,
+    };
+  });
 }
 
 /**
- * 全言語のトレンドランキングを取得
+ * 全言語のトレンドランキングを取得（スター増加率付き）
  */
 export async function getAllTrends(db: DrizzleD1Database, limit: number = 100) {
   const today = new Date().toISOString().split('T')[0];
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  return await db
+  // 今日のスナップショットを持つリポジトリを取得
+  const todaySnapshots = db
+    .select({
+      repoId: repoSnapshots.repoId,
+      stars: repoSnapshots.stars,
+    })
+    .from(repoSnapshots)
+    .where(eq(repoSnapshots.snapshotDate, today))
+    .as('today_snapshots');
+
+  // 7日前のスナップショットをサブクエリとして準備
+  const weekAgoSnapshots = db
+    .select({
+      repoId: repoSnapshots.repoId,
+      stars: repoSnapshots.stars,
+    })
+    .from(repoSnapshots)
+    .where(eq(repoSnapshots.snapshotDate, sevenDaysAgo))
+    .as('week_ago_snapshots');
+
+  // メインクエリ: リポジトリと今日・7日前のスナップショットをJOIN
+  const results = await db
     .select({
       repoId: repositories.repoId,
       name: repositories.name,
@@ -53,15 +113,56 @@ export async function getAllTrends(db: DrizzleD1Database, limit: number = 100) {
       language: repositories.language,
       description: repositories.description,
       htmlUrl: repositories.htmlUrl,
-      currentStars: repoSnapshots.stars,
+      currentStars: todaySnapshots.stars,
+      weekAgoStars: weekAgoSnapshots.stars,
     })
     .from(repositories)
-    .leftJoin(
-      repoSnapshots,
-      and(eq(repositories.repoId, repoSnapshots.repoId), eq(repoSnapshots.snapshotDate, today))
-    )
-    .orderBy(desc(repoSnapshots.stars))
+    .leftJoin(todaySnapshots, eq(repositories.repoId, todaySnapshots.repoId))
+    .leftJoin(weekAgoSnapshots, eq(repositories.repoId, weekAgoSnapshots.repoId))
+    .orderBy(desc(todaySnapshots.stars))
     .limit(limit);
+
+  // 増加率を計算
+  return results.map((item) => {
+    const weeklyGrowth = calculateWeeklyGrowth(item.currentStars, item.weekAgoStars);
+    const weeklyGrowthRate = calculateWeeklyGrowthRate(item.currentStars, item.weekAgoStars);
+    return {
+      repoId: item.repoId,
+      name: item.name,
+      fullName: item.fullName,
+      owner: item.owner,
+      language: item.language,
+      description: item.description,
+      htmlUrl: item.htmlUrl,
+      currentStars: item.currentStars,
+      weeklyGrowth,
+      weeklyGrowthRate,
+    };
+  });
+}
+
+/**
+ * 週間スター増加数を計算
+ */
+function calculateWeeklyGrowth(
+  currentStars: number | null,
+  weekAgoStars: number | null
+): number | null {
+  if (currentStars === null) return null;
+  if (weekAgoStars === null) return null;
+  return currentStars - weekAgoStars;
+}
+
+/**
+ * 週間スター増加率を計算（%）
+ */
+function calculateWeeklyGrowthRate(
+  currentStars: number | null,
+  weekAgoStars: number | null
+): number | null {
+  if (currentStars === null || weekAgoStars === null) return null;
+  if (weekAgoStars === 0) return currentStars > 0 ? 100 : 0;
+  return Math.round(((currentStars - weekAgoStars) / weekAgoStars) * 10000) / 100;
 }
 
 /**

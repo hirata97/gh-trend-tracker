@@ -57,6 +57,25 @@ export default function TrendList({ initialTrends }: Props) {
     );
   }
 
+  const formatGrowthRate = (rate: number | null): string => {
+    if (rate === null) return '-';
+    const sign = rate >= 0 ? '+' : '';
+    return `${sign}${rate.toFixed(2)}%`;
+  };
+
+  const formatGrowth = (growth: number | null): string => {
+    if (growth === null) return '-';
+    const sign = growth >= 0 ? '+' : '';
+    return `${sign}${growth.toLocaleString()}`;
+  };
+
+  const getGrowthClass = (rate: number | null): string => {
+    if (rate === null) return 'growth-neutral';
+    if (rate >= 5) return 'growth-high';
+    if (rate >= 1) return 'growth-medium';
+    return 'growth-low';
+  };
+
   return (
     <div className="trend-list">
       <table>
@@ -65,6 +84,7 @@ export default function TrendList({ initialTrends }: Props) {
             <th>Repository</th>
             <th>Language</th>
             <th>Stars</th>
+            <th>Weekly Growth</th>
             <th>Description</th>
           </tr>
         </thead>
@@ -92,14 +112,20 @@ export default function TrendList({ initialTrends }: Props) {
                     <span style={{ color: '#999' }}>N/A</span>
                   )}
                 </td>
-                <td className="star-count">⭐ {trend.currentStars?.toLocaleString() || 0}</td>
-                <td style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <td className="star-count">
+                  {trend.currentStars?.toLocaleString() || 0}
+                </td>
+                <td className={`weekly-growth ${getGrowthClass(trend.weeklyGrowthRate)}`}>
+                  <span className="growth-value">{formatGrowth(trend.weeklyGrowth)}</span>
+                  <span className="growth-rate">({formatGrowthRate(trend.weeklyGrowthRate)})</span>
+                </td>
+                <td style={{ maxWidth: '350px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {trend.description || <em style={{ color: '#999' }}>No description</em>}
                 </td>
               </tr>
               {expandedRepo?.repoId === trend.repoId && (
                 <tr className="chart-row">
-                  <td colSpan={4}>
+                  <td colSpan={5}>
                     <div className="chart-container">
                       <h4>Star History (Last 90 Days)</h4>
                       <StarChart
