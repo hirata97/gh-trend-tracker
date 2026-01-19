@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getAllLanguages } from '../shared/queries';
-import type { LanguagesResponse, ErrorResponse } from '@gh-trend-tracker/shared';
+import { dbError } from '../shared/errors';
+import type { LanguagesResponse, ApiError } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
 const languages = new Hono<AppEnv>();
@@ -15,7 +16,7 @@ languages.get('/', async (c) => {
     return c.json(response);
   } catch (error) {
     console.error('Error fetching languages:', error);
-    const errorResponse: ErrorResponse = { error: 'Failed to fetch languages' };
+    const errorResponse: ApiError = dbError('Failed to fetch languages');
     return c.json(errorResponse, 500);
   }
 });

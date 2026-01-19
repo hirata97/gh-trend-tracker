@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { getTrendsByLanguage, getAllTrends } from '../shared/queries';
 import { DEFAULT_TREND_LIMIT } from '../shared/constants';
-import type { TrendsResponse, ErrorResponse } from '@gh-trend-tracker/shared';
+import { dbError } from '../shared/errors';
+import type { TrendsResponse, ApiError } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
 const trends = new Hono<AppEnv>();
@@ -16,7 +17,7 @@ trends.get('/', async (c) => {
     return c.json(response);
   } catch (error) {
     console.error('Error fetching trends:', error);
-    const errorResponse: ErrorResponse = { error: 'Failed to fetch trends' };
+    const errorResponse: ApiError = dbError('Failed to fetch trends');
     return c.json(errorResponse, 500);
   }
 });
@@ -32,7 +33,7 @@ trends.get('/:language', async (c) => {
     return c.json(response);
   } catch (error) {
     console.error('Error fetching trends:', error);
-    const errorResponse: ErrorResponse = { error: 'Failed to fetch trends' };
+    const errorResponse: ApiError = dbError('Failed to fetch trends');
     return c.json(errorResponse, 500);
   }
 });
