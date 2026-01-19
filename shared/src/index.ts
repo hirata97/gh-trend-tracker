@@ -54,6 +54,30 @@ export interface HistoryResponse {
   history: RepoSnapshot[];
 }
 
+// リポジトリ詳細レスポンス型
+export interface RepoDetailResponse {
+  repository: {
+    repoId: number;
+    name: string;
+    fullName: string;
+    owner: string;
+    language: string | null;
+    description: string | null;
+    htmlUrl: string;
+    homepage: string | null;
+    topics: string[];
+  };
+  currentStats: {
+    stars: number;
+    forks: number;
+    watchers: number;
+    openIssues: number;
+    snapshotDate: string;
+  } | null;
+  weeklyGrowth: number | null;
+  weeklyGrowthRate: number | null;
+}
+
 export interface LanguagesResponse {
   languages: (string | null)[];
 }

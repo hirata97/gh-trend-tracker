@@ -97,12 +97,20 @@ export default function TrendList({ initialTrends }: Props) {
               >
                 <td>
                   <a
+                    href={`/repo/${trend.repoId}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {trend.fullName}
+                  </a>
+                  <a
                     href={trend.htmlUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
+                    className="external-link"
+                    title="Open on GitHub"
                   >
-                    {trend.fullName}
+                    ↗
                   </a>
                 </td>
                 <td>

@@ -75,6 +75,16 @@ td:first-child {
   font-weight: 500;
 }
 
+.external-link {
+  margin-left: 0.5rem;
+  opacity: 0.5;
+  font-size: 0.875rem;
+}
+
+.external-link:hover {
+  opacity: 1;
+}
+
 /* Links */
 a {
   color: #0366d6;
@@ -216,6 +226,122 @@ input:focus {
 
 .star-chart-error {
   color: #c53030;
+}
+
+/* Repository Detail Page */
+.repo-detail {
+  max-width: 900px;
+}
+
+.repo-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #e1e4e8;
+}
+
+.repo-header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.repo-header h1 a {
+  color: #24292e;
+}
+
+.repo-header h1 a:hover {
+  color: #0366d6;
+}
+
+.repo-description {
+  color: #586069;
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.repo-meta {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.homepage-link {
+  font-size: 0.875rem;
+}
+
+.topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.topic-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #f1f8ff;
+  color: #0366d6;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.repo-stats {
+  margin-bottom: 2rem;
+}
+
+.repo-stats h2 {
+  margin-top: 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.stat-item {
+  background: #f6f8fa;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #24292e;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.875rem;
+  color: #586069;
+  margin-top: 0.25rem;
+}
+
+.stat-item.growth-high .stat-value {
+  color: #22863a;
+}
+
+.stat-item.growth-medium .stat-value {
+  color: #b08800;
+}
+
+.stat-item.growth-low .stat-value {
+  color: #586069;
+}
+
+.no-stats {
+  color: #586069;
+  font-style: italic;
+}
+
+.repo-chart {
+  margin-bottom: 2rem;
+}
+
+.repo-chart h2 {
+  margin-top: 0;
 }
 
 /* Responsive */
