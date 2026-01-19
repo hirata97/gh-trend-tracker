@@ -133,6 +133,60 @@ input:focus {
   margin: 1rem 0;
 }
 
+/* Trend Row Styles */
+.trend-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trend-row:hover {
+  background: #f0f7ff;
+}
+
+.trend-row.expanded {
+  background: #f6f8fa;
+}
+
+/* Chart Row Styles */
+.chart-row {
+  background: #fafbfc;
+}
+
+.chart-row td {
+  padding: 0;
+}
+
+.chart-container {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e1e4e8;
+}
+
+.chart-container h4 {
+  font-size: 0.875rem;
+  color: #586069;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+/* Star Chart Container */
+.star-chart-container {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.star-chart-loading,
+.star-chart-error,
+.star-chart-empty {
+  color: #586069;
+  font-size: 0.875rem;
+}
+
+.star-chart-error {
+  color: #c53030;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   body {
