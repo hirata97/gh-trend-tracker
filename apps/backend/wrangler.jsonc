@@ -1,6 +1,14 @@
 /**
  * Cloudflare Workers設定
  * https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * CORS設定:
+ * 本番環境では環境変数 ALLOWED_ORIGINS を設定してください。
+ * カンマ区切りで複数のオリジンを指定可能です。
+ * 例: npx wrangler secret put ALLOWED_ORIGINS
+ *     値: https://example.com,https://app.example.com
+ *
+ * 未設定の場合は全オリジンを許可します（開発用）。
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",

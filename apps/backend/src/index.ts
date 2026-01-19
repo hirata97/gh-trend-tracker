@@ -9,8 +9,15 @@ import type { AppEnv } from './types/app';
 
 const app = new Hono<AppEnv>();
 
-// CORS設定（開発用、本番では制限すべき）
-app.use('/*', cors());
+// CORS設定（環境変数で許可オリジンを制御）
+app.use('/*', async (c, next) => {
+  const allowedOrigins = c.env.ALLOWED_ORIGINS?.split(',') ?? [];
+  const corsMiddleware = cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
+    credentials: true,
+  });
+  return corsMiddleware(c, next);
+});
 
 // データベースミドルウェア
 app.use('/*', dbMiddleware);

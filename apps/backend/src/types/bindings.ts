@@ -3,4 +3,5 @@
  */
 export type Bindings = {
   DB: D1Database;
+  ALLOWED_ORIGINS?: string;
 };
