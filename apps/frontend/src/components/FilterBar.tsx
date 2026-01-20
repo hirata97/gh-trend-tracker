@@ -8,12 +8,6 @@ import type { TrendSortField, SortOrder } from '@gh-trend-tracker/shared';
 
 interface Props {
   languages: (string | null)[];
-  currentLanguage?: string;
-  currentSearch?: string;
-  currentMinStars?: number;
-  currentMaxStars?: number;
-  currentSort?: TrendSortField;
-  currentOrder?: SortOrder;
 }
 
 const SORT_OPTIONS: { value: TrendSortField; label: string }[] = [
@@ -22,33 +16,67 @@ const SORT_OPTIONS: { value: TrendSortField; label: string }[] = [
   { value: 'weekly_growth', label: 'Weekly Growth' },
 ];
 
-export default function FilterBar({
-  languages,
-  currentLanguage,
-  currentSearch = '',
-  currentMinStars,
-  currentMaxStars,
-  currentSort = 'stars',
-  currentOrder = 'desc',
-}: Props) {
-  const [searchValue, setSearchValue] = useState(currentSearch);
+// Parse URL parameters
+function getParamsFromUrl(): {
+  language: string | undefined;
+  q: string;
+  minStars: number | undefined;
+  maxStars: number | undefined;
+  sort: TrendSortField;
+  order: SortOrder;
+} {
+  if (typeof window === 'undefined') {
+    return { language: undefined, q: '', minStars: undefined, maxStars: undefined, sort: 'stars', order: 'desc' };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const sortParam = params.get('sort');
+  const orderParam = params.get('order');
+  const minStarsParam = params.get('minStars');
+  const maxStarsParam = params.get('maxStars');
+
+  return {
+    language: params.get('language') || undefined,
+    q: params.get('q') || '',
+    minStars: minStarsParam ? parseInt(minStarsParam, 10) : undefined,
+    maxStars: maxStarsParam ? parseInt(maxStarsParam, 10) : undefined,
+    sort: (sortParam && ['stars', 'growth_rate', 'weekly_growth'].includes(sortParam) ? sortParam : 'stars') as TrendSortField,
+    order: (orderParam && ['asc', 'desc'].includes(orderParam) ? orderParam : 'desc') as SortOrder,
+  };
+}
+
+export default function FilterBar({ languages }: Props) {
+  const initialParams = getParamsFromUrl();
+  const [searchValue, setSearchValue] = useState(initialParams.q);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [language, setLanguage] = useState(currentLanguage);
-  const [sort, setSort] = useState(currentSort);
-  const [order, setOrder] = useState(currentOrder);
-  const [minStars, setMinStars] = useState(currentMinStars);
-  const [maxStars, setMaxStars] = useState(currentMaxStars);
+  const [language, setLanguage] = useState(initialParams.language);
+  const [sort, setSort] = useState(initialParams.sort);
+  const [order, setOrder] = useState(initialParams.order);
+  const [minStars, setMinStars] = useState(initialParams.minStars);
+  const [maxStars, setMaxStars] = useState(initialParams.maxStars);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync local state with props when they change (for View Transitions)
+  // Sync state with URL on page transitions
   useEffect(() => {
-    setSearchValue(currentSearch);
-    setLanguage(currentLanguage);
-    setSort(currentSort);
-    setOrder(currentOrder);
-    setMinStars(currentMinStars);
-    setMaxStars(currentMaxStars);
-  }, [currentSearch, currentLanguage, currentSort, currentOrder, currentMinStars, currentMaxStars]);
+    const syncFromUrl = () => {
+      const params = getParamsFromUrl();
+      setSearchValue(params.q);
+      setLanguage(params.language);
+      setSort(params.sort);
+      setOrder(params.order);
+      setMinStars(params.minStars);
+      setMaxStars(params.maxStars);
+    };
+
+    // Listen for Astro page transitions
+    document.addEventListener('astro:page-load', syncFromUrl);
+    // Also listen for popstate (browser back/forward)
+    window.addEventListener('popstate', syncFromUrl);
+
+    return () => {
+      document.removeEventListener('astro:page-load', syncFromUrl);
+      window.removeEventListener('popstate', syncFromUrl);
+    };
+  }, []);
 
   // Filter out null languages and sort
   const validLanguages = languages.filter((lang): lang is string => lang !== null).sort();

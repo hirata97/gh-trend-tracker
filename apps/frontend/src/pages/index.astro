@@ -76,12 +76,6 @@ if (minStars !== undefined || maxStars !== undefined) {
       <>
         <FilterBar
           languages={languages}
-          currentLanguage={selectedLanguage}
-          currentSearch={searchQuery}
-          currentMinStars={minStars}
-          currentMaxStars={maxStars}
-          currentSort={sort || 'stars'}
-          currentOrder={order || 'desc'}
           client:load
           transition:persist="filter-bar"
         />
