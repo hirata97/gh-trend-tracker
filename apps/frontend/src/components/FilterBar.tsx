@@ -33,7 +33,22 @@ export default function FilterBar({
 }: Props) {
   const [searchValue, setSearchValue] = useState(currentSearch);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [language, setLanguage] = useState(currentLanguage);
+  const [sort, setSort] = useState(currentSort);
+  const [order, setOrder] = useState(currentOrder);
+  const [minStars, setMinStars] = useState(currentMinStars);
+  const [maxStars, setMaxStars] = useState(currentMaxStars);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync local state with props when they change (for View Transitions)
+  useEffect(() => {
+    setSearchValue(currentSearch);
+    setLanguage(currentLanguage);
+    setSort(currentSort);
+    setOrder(currentOrder);
+    setMinStars(currentMinStars);
+    setMaxStars(currentMaxStars);
+  }, [currentSearch, currentLanguage, currentSort, currentOrder, currentMinStars, currentMaxStars]);
 
   // Filter out null languages and sort
   const validLanguages = languages.filter((lang): lang is string => lang !== null).sort();
@@ -50,24 +65,24 @@ export default function FilterBar({
     }> = {}) => {
       const params = new URLSearchParams();
 
-      const language = overrides.language !== undefined ? overrides.language : currentLanguage;
+      const lang = overrides.language !== undefined ? overrides.language : language;
       const q = overrides.q !== undefined ? overrides.q : searchValue;
-      const minStars = overrides.minStars !== undefined ? overrides.minStars : currentMinStars;
-      const maxStars = overrides.maxStars !== undefined ? overrides.maxStars : currentMaxStars;
-      const sort = overrides.sort !== undefined ? overrides.sort : currentSort;
-      const order = overrides.order !== undefined ? overrides.order : currentOrder;
+      const min = overrides.minStars !== undefined ? overrides.minStars : minStars;
+      const max = overrides.maxStars !== undefined ? overrides.maxStars : maxStars;
+      const sortVal = overrides.sort !== undefined ? overrides.sort : sort;
+      const orderVal = overrides.order !== undefined ? overrides.order : order;
 
-      if (language) params.set('language', language);
+      if (lang) params.set('language', lang);
       if (q) params.set('q', q);
-      if (minStars !== undefined && minStars !== null) params.set('minStars', String(minStars));
-      if (maxStars !== undefined && maxStars !== null) params.set('maxStars', String(maxStars));
-      if (sort && sort !== 'stars') params.set('sort', sort);
-      if (order && order !== 'desc') params.set('order', order);
+      if (min !== undefined && min !== null) params.set('minStars', String(min));
+      if (max !== undefined && max !== null) params.set('maxStars', String(max));
+      if (sortVal && sortVal !== 'stars') params.set('sort', sortVal);
+      if (orderVal && orderVal !== 'desc') params.set('order', orderVal);
 
       const queryString = params.toString();
       return queryString ? `/?${queryString}` : '/';
     },
-    [currentLanguage, searchValue, currentMinStars, currentMaxStars, currentSort, currentOrder]
+    [language, searchValue, minStars, maxStars, sort, order]
   );
 
   // Handle search input with debounce
@@ -100,7 +115,7 @@ export default function FilterBar({
 
   // Handle order toggle
   const handleOrderToggle = () => {
-    const newOrder = currentOrder === 'desc' ? 'asc' : 'desc';
+    const newOrder = order === 'desc' ? 'asc' : 'desc';
     navigate(buildUrl({ order: newOrder }));
   };
 
@@ -119,6 +134,11 @@ export default function FilterBar({
   // Clear all filters
   const handleClearFilters = () => {
     setSearchValue('');
+    setLanguage(undefined);
+    setSort('stars');
+    setOrder('desc');
+    setMinStars(undefined);
+    setMaxStars(undefined);
     navigate('/');
   };
 
@@ -132,7 +152,7 @@ export default function FilterBar({
   }, []);
 
   // Check if any filters are active
-  const hasActiveFilters = currentLanguage || currentSearch || currentMinStars !== undefined || currentMaxStars !== undefined || currentSort !== 'stars' || currentOrder !== 'desc';
+  const hasActiveFilters = language || searchValue || minStars !== undefined || maxStars !== undefined || sort !== 'stars' || order !== 'desc';
 
   return (
     <div className="filter-bar">
@@ -151,7 +171,7 @@ export default function FilterBar({
         {/* Language filter */}
         <div className="filter-item">
           <select
-            value={currentLanguage || ''}
+            value={language || ''}
             onChange={handleLanguageChange}
             className="filter-select"
           >
@@ -167,7 +187,7 @@ export default function FilterBar({
         {/* Sort selector */}
         <div className="filter-item">
           <select
-            value={currentSort}
+            value={sort}
             onChange={handleSortChange}
             className="filter-select"
           >
@@ -183,9 +203,9 @@ export default function FilterBar({
         <button
           className="order-toggle"
           onClick={handleOrderToggle}
-          title={currentOrder === 'desc' ? 'Descending' : 'Ascending'}
+          title={order === 'desc' ? 'Descending' : 'Ascending'}
         >
-          {currentOrder === 'desc' ? '↓' : '↑'}
+          {order === 'desc' ? '↓' : '↑'}
         </button>
 
         {/* Advanced filters toggle */}
@@ -214,7 +234,7 @@ export default function FilterBar({
               type="number"
               min="0"
               placeholder="0"
-              value={currentMinStars ?? ''}
+              value={minStars ?? ''}
               onChange={handleMinStarsChange}
               className="stars-input"
             />
@@ -226,7 +246,7 @@ export default function FilterBar({
               type="number"
               min="0"
               placeholder="∞"
-              value={currentMaxStars ?? ''}
+              value={maxStars ?? ''}
               onChange={handleMaxStarsChange}
               className="stars-input"
             />
