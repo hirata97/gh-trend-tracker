@@ -45,9 +45,38 @@ export interface TrendItem {
   weeklyGrowthRate: number | null; // 増加率（%）
 }
 
+// 検索・フィルタ・ソートのパラメータ型
+export type TrendSortField = 'stars' | 'growth_rate' | 'weekly_growth';
+export type SortOrder = 'asc' | 'desc';
+
+export interface TrendsQueryParams {
+  /** 言語フィルタ */
+  language?: string;
+  /** テキスト検索（リポジトリ名、説明文、オーナー名） */
+  q?: string;
+  /** 最小スター数 */
+  minStars?: number;
+  /** 最大スター数 */
+  maxStars?: number;
+  /** ソートフィールド */
+  sort?: TrendSortField;
+  /** ソート順序 */
+  order?: SortOrder;
+  /** 取得件数 */
+  limit?: number;
+}
+
 export interface TrendsResponse {
   language?: string;
   trends: TrendItem[];
+  /** 適用されたフィルタ情報 */
+  filters?: {
+    q?: string;
+    minStars?: number;
+    maxStars?: number;
+    sort?: TrendSortField;
+    order?: SortOrder;
+  };
 }
 
 export interface HistoryResponse {

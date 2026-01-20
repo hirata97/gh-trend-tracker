@@ -1,85 +1,42 @@
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, asc, eq, sql, like, and, or } from 'drizzle-orm';
 import { repositories, repoSnapshots } from '../db/schema';
+import type { TrendSortField, SortOrder } from '@gh-trend-tracker/shared';
 
 /**
  * 共通クエリ関数
  */
 
 /**
- * 指定言語のトレンドランキングを取得（スター増加率付き）
+ * 検索・フィルタ・ソートオプション
  */
-export async function getTrendsByLanguage(
-  db: DrizzleD1Database,
-  language: string,
-  limit: number = 100
-) {
-  const today = new Date().toISOString().split('T')[0];
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-  // 今日のスナップショットをサブクエリとして準備
-  const todaySnapshots = db
-    .select({
-      repoId: repoSnapshots.repoId,
-      stars: repoSnapshots.stars,
-    })
-    .from(repoSnapshots)
-    .where(eq(repoSnapshots.snapshotDate, today))
-    .as('today_snapshots');
-
-  // 7日前のスナップショットをサブクエリとして準備
-  const weekAgoSnapshots = db
-    .select({
-      repoId: repoSnapshots.repoId,
-      stars: repoSnapshots.stars,
-    })
-    .from(repoSnapshots)
-    .where(eq(repoSnapshots.snapshotDate, sevenDaysAgo))
-    .as('week_ago_snapshots');
-
-  // メインクエリ: リポジトリと今日・7日前のスナップショットをJOIN
-  const results = await db
-    .select({
-      repoId: repositories.repoId,
-      name: repositories.name,
-      fullName: repositories.fullName,
-      owner: repositories.owner,
-      language: repositories.language,
-      description: repositories.description,
-      htmlUrl: repositories.htmlUrl,
-      currentStars: todaySnapshots.stars,
-      weekAgoStars: weekAgoSnapshots.stars,
-    })
-    .from(repositories)
-    .leftJoin(todaySnapshots, eq(repositories.repoId, todaySnapshots.repoId))
-    .leftJoin(weekAgoSnapshots, eq(repositories.repoId, weekAgoSnapshots.repoId))
-    .where(eq(repositories.language, language))
-    .orderBy(desc(todaySnapshots.stars))
-    .limit(limit);
-
-  // 増加率を計算
-  return results.map((item) => {
-    const weeklyGrowth = calculateWeeklyGrowth(item.currentStars, item.weekAgoStars);
-    const weeklyGrowthRate = calculateWeeklyGrowthRate(item.currentStars, item.weekAgoStars);
-    return {
-      repoId: item.repoId,
-      name: item.name,
-      fullName: item.fullName,
-      owner: item.owner,
-      language: item.language,
-      description: item.description,
-      htmlUrl: item.htmlUrl,
-      currentStars: item.currentStars,
-      weeklyGrowth,
-      weeklyGrowthRate,
-    };
-  });
+export interface TrendsQueryOptions {
+  language?: string;
+  q?: string;
+  minStars?: number;
+  maxStars?: number;
+  sort?: TrendSortField;
+  order?: SortOrder;
+  limit?: number;
 }
 
 /**
- * 全言語のトレンドランキングを取得（スター増加率付き）
+ * 全言語のトレンドランキングを取得（検索・フィルタ・ソート対応）
  */
-export async function getAllTrends(db: DrizzleD1Database, limit: number = 100) {
+export async function getAllTrends(
+  db: DrizzleD1Database,
+  options: TrendsQueryOptions = {}
+) {
+  const {
+    language,
+    q,
+    minStars,
+    maxStars,
+    sort = 'stars',
+    order = 'desc',
+    limit = 100,
+  } = options;
+
   const today = new Date().toISOString().split('T')[0];
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -103,8 +60,30 @@ export async function getAllTrends(db: DrizzleD1Database, limit: number = 100) {
     .where(eq(repoSnapshots.snapshotDate, sevenDaysAgo))
     .as('week_ago_snapshots');
 
+  // WHERE条件を構築
+  const conditions = [];
+
+  // 言語フィルタ
+  if (language) {
+    conditions.push(eq(repositories.language, language));
+  }
+
+  // テキスト検索（リポジトリ名、説明文、オーナー名）
+  if (q) {
+    const searchPattern = `%${q}%`;
+    conditions.push(
+      or(
+        like(repositories.name, searchPattern),
+        like(repositories.fullName, searchPattern),
+        like(repositories.description, searchPattern),
+        like(repositories.owner, searchPattern)
+      )
+    );
+  }
+
   // メインクエリ: リポジトリと今日・7日前のスナップショットをJOIN
-  const results = await db
+  // 注: minStars/maxStarsはJOIN後にフィルタするため、まず全件取得
+  let query = db
     .select({
       repoId: repositories.repoId,
       name: repositories.name,
@@ -118,12 +97,29 @@ export async function getAllTrends(db: DrizzleD1Database, limit: number = 100) {
     })
     .from(repositories)
     .leftJoin(todaySnapshots, eq(repositories.repoId, todaySnapshots.repoId))
-    .leftJoin(weekAgoSnapshots, eq(repositories.repoId, weekAgoSnapshots.repoId))
-    .orderBy(desc(todaySnapshots.stars))
-    .limit(limit);
+    .leftJoin(weekAgoSnapshots, eq(repositories.repoId, weekAgoSnapshots.repoId));
 
-  // 増加率を計算
-  return results.map((item) => {
+  // WHERE句を適用
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as typeof query;
+  }
+
+  // 取得件数を増やしてからスター数フィルタ（JOINカラムでのフィルタはアプリ側で行う）
+  // D1のSQLiteではJOINしたサブクエリのカラムをWHERE句で直接使えないため
+  const fetchLimit = (minStars !== undefined || maxStars !== undefined) ? 1000 : limit;
+
+  // ソート適用（デフォルトはstars降順）
+  // 注: growth_rateとweekly_growthは計算列のためアプリ側でソート
+  const needsAppSort = sort === 'growth_rate' || sort === 'weekly_growth';
+  if (!needsAppSort) {
+    const orderFunc = order === 'asc' ? asc : desc;
+    query = query.orderBy(orderFunc(todaySnapshots.stars)) as typeof query;
+  }
+
+  const results = await query.limit(fetchLimit);
+
+  // 増加率を計算してから追加フィルタ・ソートを適用
+  let processedResults = results.map((item) => {
     const weeklyGrowth = calculateWeeklyGrowth(item.currentStars, item.weekAgoStars);
     const weeklyGrowthRate = calculateWeeklyGrowthRate(item.currentStars, item.weekAgoStars);
     return {
@@ -139,6 +135,39 @@ export async function getAllTrends(db: DrizzleD1Database, limit: number = 100) {
       weeklyGrowthRate,
     };
   });
+
+  // スター数フィルタ（アプリ側で適用）
+  if (minStars !== undefined) {
+    processedResults = processedResults.filter(
+      (item) => item.currentStars !== null && item.currentStars >= minStars
+    );
+  }
+  if (maxStars !== undefined) {
+    processedResults = processedResults.filter(
+      (item) => item.currentStars !== null && item.currentStars <= maxStars
+    );
+  }
+
+  // growth_rateまたはweekly_growthでソート
+  if (needsAppSort) {
+    const multiplier = order === 'asc' ? 1 : -1;
+    if (sort === 'growth_rate') {
+      processedResults.sort((a, b) => {
+        const aVal = a.weeklyGrowthRate ?? -Infinity;
+        const bVal = b.weeklyGrowthRate ?? -Infinity;
+        return (aVal - bVal) * multiplier;
+      });
+    } else if (sort === 'weekly_growth') {
+      processedResults.sort((a, b) => {
+        const aVal = a.weeklyGrowth ?? -Infinity;
+        const bVal = b.weeklyGrowth ?? -Infinity;
+        return (aVal - bVal) * multiplier;
+      });
+    }
+  }
+
+  // 最終的なlimit適用
+  return processedResults.slice(0, limit);
 }
 
 /**

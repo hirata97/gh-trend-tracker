@@ -1,13 +1,23 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import TrendList from '../components/TrendList';
-import LanguageFilter from '../components/LanguageFilter';
+import FilterBar from '../components/FilterBar';
 import { getTrends, getLanguages } from '../lib/api';
-import type { TrendItem } from '@gh-trend-tracker/shared';
+import type { TrendItem, TrendSortField, SortOrder } from '@gh-trend-tracker/shared';
 
-// Get language from query parameter
+// Get filter parameters from query string
 const url = new URL(Astro.request.url);
 const selectedLanguage = url.searchParams.get('language') || undefined;
+const searchQuery = url.searchParams.get('q') || undefined;
+const minStarsParam = url.searchParams.get('minStars');
+const maxStarsParam = url.searchParams.get('maxStars');
+const sortParam = url.searchParams.get('sort') as TrendSortField | null;
+const orderParam = url.searchParams.get('order') as SortOrder | null;
+
+const minStars = minStarsParam ? parseInt(minStarsParam, 10) : undefined;
+const maxStars = maxStarsParam ? parseInt(maxStarsParam, 10) : undefined;
+const sort = sortParam && ['stars', 'growth_rate', 'weekly_growth'].includes(sortParam) ? sortParam : undefined;
+const order = orderParam && ['asc', 'desc'].includes(orderParam) ? orderParam : undefined;
 
 // Fetch data from backend API
 let trends: TrendItem[] = [];
@@ -15,7 +25,14 @@ let languages: (string | null)[] = [];
 let error: string | null = null;
 
 try {
-  const trendsData = await getTrends(selectedLanguage);
+  const trendsData = await getTrends({
+    language: selectedLanguage,
+    q: searchQuery,
+    minStars,
+    maxStars,
+    sort,
+    order,
+  });
   trends = trendsData.trends || [];
 
   const languagesData = await getLanguages();
@@ -23,6 +40,23 @@ try {
 } catch (e) {
   error = e instanceof Error ? e.message : 'Unknown error occurred';
   console.error('Failed to fetch data:', e);
+}
+
+// Build result description
+let resultDescription = '';
+if (searchQuery) {
+  resultDescription += `Search: "${searchQuery}"`;
+}
+if (selectedLanguage) {
+  resultDescription += resultDescription ? ` in ${selectedLanguage}` : `Language: ${selectedLanguage}`;
+}
+if (minStars !== undefined || maxStars !== undefined) {
+  const starsRange = minStars !== undefined && maxStars !== undefined
+    ? `${minStars.toLocaleString()} - ${maxStars.toLocaleString()}`
+    : minStars !== undefined
+      ? `≥ ${minStars.toLocaleString()}`
+      : `≤ ${maxStars!.toLocaleString()}`;
+  resultDescription += resultDescription ? ` (${starsRange} stars)` : `Stars: ${starsRange}`;
 }
 ---
 
@@ -40,21 +74,21 @@ try {
       </div>
     ) : (
       <>
-        <LanguageFilter
+        <FilterBar
           languages={languages}
           currentLanguage={selectedLanguage}
+          currentSearch={searchQuery}
+          currentMinStars={minStars}
+          currentMaxStars={maxStars}
+          currentSort={sort || 'stars'}
+          currentOrder={order || 'desc'}
           client:load
         />
 
-        {selectedLanguage && (
-          <h2>
-            Trending in {selectedLanguage} ({trends.length} repositories)
-          </h2>
-        )}
-
-        {!selectedLanguage && (
-          <h2>All Trending Repositories ({trends.length} total)</h2>
-        )}
+        <h2>
+          {resultDescription ? `${resultDescription} - ` : ''}
+          {trends.length} {trends.length === 1 ? 'repository' : 'repositories'} found
+        </h2>
 
         <TrendList initialTrends={trends} client:load />
       </>
