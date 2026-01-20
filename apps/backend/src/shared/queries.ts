@@ -21,6 +21,19 @@ export interface TrendsQueryOptions {
 }
 
 /**
+ * 最新のスナップショット日付を取得
+ */
+async function getLatestSnapshotDate(db: DrizzleD1Database): Promise<string | null> {
+  const result = await db
+    .select({ date: repoSnapshots.snapshotDate })
+    .from(repoSnapshots)
+    .orderBy(desc(repoSnapshots.snapshotDate))
+    .limit(1);
+
+  return result[0]?.date ?? null;
+}
+
+/**
  * 全言語のトレンドランキングを取得（検索・フィルタ・ソート対応）
  */
 export async function getAllTrends(
@@ -37,8 +50,14 @@ export async function getAllTrends(
     limit = 100,
   } = options;
 
-  const today = new Date().toISOString().split('T')[0];
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // 最新のスナップショット日付を取得（データがない場合は今日の日付を使用）
+  const latestDate = await getLatestSnapshotDate(db);
+  const today = latestDate || new Date().toISOString().split('T')[0];
+
+  // 最新日付から7日前を計算
+  const latestDateObj = new Date(today);
+  latestDateObj.setDate(latestDateObj.getDate() - 7);
+  const sevenDaysAgo = latestDateObj.toISOString().split('T')[0];
 
   // 今日のスナップショットを持つリポジトリを取得
   const todaySnapshots = db
