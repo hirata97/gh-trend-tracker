@@ -51,8 +51,8 @@ export default function TrendList({ initialTrends }: Props) {
         const params = getFilterParamsFromUrl();
         const response = await getTrends(params);
         setTrends(response.trends || []);
-      } catch (err) {
-        console.error('Failed to fetch trends:', err);
+      } catch {
+        // Error handling - keep current trends on failure
       } finally {
         setLoading(false);
       }
