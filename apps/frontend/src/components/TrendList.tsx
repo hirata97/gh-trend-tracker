@@ -58,20 +58,39 @@ export default function TrendList({ initialTrends }: Props) {
       }
     };
 
-    const handlePageLoad = () => {
-      fetchTrends();
-    };
-
     // Listen for Astro page transitions
-    document.addEventListener('astro:page-load', handlePageLoad);
-    // Also listen for popstate (browser back/forward)
-    window.addEventListener('popstate', handlePageLoad);
+    document.addEventListener('astro:page-load', fetchTrends);
+    // Listen for popstate (browser back/forward)
+    window.addEventListener('popstate', fetchTrends);
+    // Listen for custom filter change event
+    window.addEventListener('filter-change', fetchTrends);
 
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
-      window.removeEventListener('popstate', handlePageLoad);
+      document.removeEventListener('astro:page-load', fetchTrends);
+      window.removeEventListener('popstate', fetchTrends);
+      window.removeEventListener('filter-change', fetchTrends);
     };
   }, []);
+
+  // Also fetch on initial mount if URL has params (for static site)
+  useEffect(() => {
+    const params = getFilterParamsFromUrl();
+    // If URL has any filter params, fetch fresh data
+    if (params.language || params.q || params.minStars || params.maxStars || params.sort || params.order) {
+      const fetchInitial = async () => {
+        setLoading(true);
+        try {
+          const response = await getTrends(params);
+          setTrends(response.trends || []);
+        } catch {
+          // Keep initial trends on failure
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchInitial();
+    }
+  }, []); // Run once on mount
 
   const handleRowClick = useCallback(async (repoId: number) => {
     // If clicking the same repo, collapse it

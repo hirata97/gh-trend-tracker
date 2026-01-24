@@ -126,37 +126,48 @@ export default function FilterBar({ languages }: Props) {
     // Set new debounce timer (300ms)
     debounceTimerRef.current = setTimeout(() => {
       navigate(buildUrl({ q: value }));
+      setTimeout(dispatchFilterChange, 100);
     }, 300);
+  };
+
+  // Dispatch custom event to notify TrendList
+  const dispatchFilterChange = () => {
+    window.dispatchEvent(new CustomEvent('filter-change'));
   };
 
   // Handle language change
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const language = e.target.value || null;
     navigate(buildUrl({ language }));
+    setTimeout(dispatchFilterChange, 100);
   };
 
   // Handle sort change
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const sort = e.target.value as TrendSortField;
     navigate(buildUrl({ sort }));
+    setTimeout(dispatchFilterChange, 100);
   };
 
   // Handle order toggle
   const handleOrderToggle = () => {
     const newOrder = order === 'desc' ? 'asc' : 'desc';
     navigate(buildUrl({ order: newOrder }));
+    setTimeout(dispatchFilterChange, 100);
   };
 
   // Handle min stars change
   const handleMinStarsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value ? parseInt(e.target.value, 10) : null;
     navigate(buildUrl({ minStars: value }));
+    setTimeout(dispatchFilterChange, 100);
   };
 
   // Handle max stars change
   const handleMaxStarsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value ? parseInt(e.target.value, 10) : null;
     navigate(buildUrl({ maxStars: value }));
+    setTimeout(dispatchFilterChange, 100);
   };
 
   // Clear all filters
@@ -168,6 +179,7 @@ export default function FilterBar({ languages }: Props) {
     setMinStars(undefined);
     setMaxStars(undefined);
     navigate('/');
+    setTimeout(dispatchFilterChange, 100);
   };
 
   // Cleanup debounce timer on unmount
