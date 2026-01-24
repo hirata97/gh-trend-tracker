@@ -3,10 +3,10 @@
  * Displays a table of trending GitHub repositories with expandable star history charts
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { TrendItem, RepoSnapshot } from '@gh-trend-tracker/shared';
 import StarChart from './StarChart';
-import { getRepoHistory } from '../lib/api';
+import { getRepoHistory, getTrends } from '../lib/api';
 
 interface Props {
   initialTrends: TrendItem[];
@@ -19,9 +19,78 @@ interface ExpandedState {
   data: { date: string; stars: number }[];
 }
 
+// Parse filter params from URL
+function getFilterParamsFromUrl() {
+  if (typeof window === 'undefined') return {};
+  const params = new URLSearchParams(window.location.search);
+  const sortParam = params.get('sort');
+  const orderParam = params.get('order');
+  const minStarsParam = params.get('minStars');
+  const maxStarsParam = params.get('maxStars');
+
+  return {
+    language: params.get('language') || undefined,
+    q: params.get('q') || undefined,
+    minStars: minStarsParam ? parseInt(minStarsParam, 10) : undefined,
+    maxStars: maxStarsParam ? parseInt(maxStarsParam, 10) : undefined,
+    sort: sortParam as 'stars' | 'growth_rate' | 'weekly_growth' | undefined,
+    order: orderParam as 'asc' | 'desc' | undefined,
+  };
+}
+
 export default function TrendList({ initialTrends }: Props) {
-  const [trends] = useState(initialTrends);
+  const [trends, setTrends] = useState(initialTrends);
+  const [loading, setLoading] = useState(false);
   const [expandedRepo, setExpandedRepo] = useState<ExpandedState | null>(null);
+
+  // Fetch data when URL changes
+  useEffect(() => {
+    const fetchTrends = async () => {
+      setLoading(true);
+      try {
+        const params = getFilterParamsFromUrl();
+        const response = await getTrends(params);
+        setTrends(response.trends || []);
+      } catch {
+        // Error handling - keep current trends on failure
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Listen for Astro page transitions
+    document.addEventListener('astro:page-load', fetchTrends);
+    // Listen for popstate (browser back/forward)
+    window.addEventListener('popstate', fetchTrends);
+    // Listen for custom filter change event
+    window.addEventListener('filter-change', fetchTrends);
+
+    return () => {
+      document.removeEventListener('astro:page-load', fetchTrends);
+      window.removeEventListener('popstate', fetchTrends);
+      window.removeEventListener('filter-change', fetchTrends);
+    };
+  }, []);
+
+  // Also fetch on initial mount if URL has params (for static site)
+  useEffect(() => {
+    const params = getFilterParamsFromUrl();
+    // If URL has any filter params, fetch fresh data
+    if (params.language || params.q || params.minStars || params.maxStars || params.sort || params.order) {
+      const fetchInitial = async () => {
+        setLoading(true);
+        try {
+          const response = await getTrends(params);
+          setTrends(response.trends || []);
+        } catch {
+          // Keep initial trends on failure
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchInitial();
+    }
+  }, []); // Run once on mount
 
   const handleRowClick = useCallback(async (repoId: number) => {
     // If clicking the same repo, collapse it
@@ -47,6 +116,14 @@ export default function TrendList({ initialTrends }: Props) {
       setExpandedRepo({ repoId, loading: false, error: errorMessage, data: [] });
     }
   }, [expandedRepo?.repoId]);
+
+  if (loading) {
+    return (
+      <div className="loading">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   if (!trends || trends.length === 0) {
     return (

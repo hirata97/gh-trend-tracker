@@ -5,6 +5,7 @@
 
 import type {
   TrendsResponse,
+  TrendsQueryParams,
   LanguagesResponse,
   HistoryResponse,
   RepoDetailResponse,
@@ -13,14 +14,29 @@ import type {
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
 
 /**
- * Fetch trending repositories
- * @param language - Optional language filter
+ * Fetch trending repositories with optional filters
+ * @param params - Query parameters for filtering, sorting, and searching
  * @returns TrendsResponse with repository data
  */
-export async function getTrends(language?: string): Promise<TrendsResponse> {
-  const url = language
+export async function getTrends(params?: TrendsQueryParams): Promise<TrendsResponse> {
+  const { language, ...queryParams } = params || {};
+
+  // Build base URL
+  const baseUrl = language
     ? `${API_BASE}/api/trends/${encodeURIComponent(language)}`
     : `${API_BASE}/api/trends`;
+
+  // Build query string from params
+  const searchParams = new URLSearchParams();
+  if (queryParams.q) searchParams.set('q', queryParams.q);
+  if (queryParams.minStars !== undefined) searchParams.set('minStars', String(queryParams.minStars));
+  if (queryParams.maxStars !== undefined) searchParams.set('maxStars', String(queryParams.maxStars));
+  if (queryParams.sort) searchParams.set('sort', queryParams.sort);
+  if (queryParams.order) searchParams.set('order', queryParams.order);
+  if (queryParams.limit !== undefined) searchParams.set('limit', String(queryParams.limit));
+
+  const queryString = searchParams.toString();
+  const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
   const response = await fetch(url);
 
