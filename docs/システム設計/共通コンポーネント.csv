@@ -1,0 +1,6 @@
+"id","分類","ファイル名","概要","Props","画面Id"
+"COM-001","リストアイテム","RepositoryListItem","リポジトリの一覧表示に使用されるカード/行コンポーネント。名称、概要、スター数、増加数(7日/30日)を含む。","{repo:RepositoryObject, showMetrics:boolean}","['scr-001','scr-003','scr-004','scr-010']"
+"COM-002","レイアウト","GlobalHeader","サイト全体のヘッダーナビゲーション。ロゴ、主要リンク、データスナップショット日時(fun-014)、ユーザー認証状態を表示する。","{snapshotDate:string, isAuthenticated:boolean}","['scr-001','scr-002','scr-003','scr-004','scr-005','scr-006','scr-007','scr-009','scr-010','scr-011']"
+"COM-003","フィルタリング","LanguageFilterDropdown","言語を選択・フィルタリングするためのドロップダウンUI (fun-006, fun-020)。","{currentLanguage:string, availableLanguages:string[], onSelect:function}","['scr-001','scr-003']"
+"COM-004","ナビゲーション","Pagination","リストや検索結果のページ送りを制御するUI (fun-053)。","{currentPage:number, totalPages:number, onPageChange:function}","['scr-001','scr-004']"
+"COM-005","UI要素","PrimaryButton","ログイン、決済、AI要約生成要求など、主要なアクションを実行するための共通ボタン。","{label:string, onClick:function, type:string, disabled:boolean}","['scr-002','scr-007','scr-008','scr-011']"
