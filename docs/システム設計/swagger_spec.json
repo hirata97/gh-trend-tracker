@@ -1,0 +1,686 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Project API Documentation",
+    "version": "1.0.0",
+    "description": "API documentation for the project endpoints"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "API Server"
+    }
+  ],
+  "paths": {
+    "/api/trends/daily": {
+      "get": {
+        "summary": "日次トレンドランキング取得",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "full_name": {
+                        "type": "string"
+                      },
+                      "stars_30d_rate": {
+                        "type": "number",
+                        "format": "float"
+                      },
+                      "stargazers_count": {
+                        "type": "integer"
+                      },
+                      "stars_7d_increase": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "id": "a49ad09a-2117-46d6-91d9-6a6ce3975a96",
+                    "full_name": "owner/repo-name",
+                    "stars_30d_rate": 0.15,
+                    "stargazers_count": 12000,
+                    "stars_7d_increase": 500
+                  }
+                ]
+              }
+            },
+            "description": "トレンドランキングデータ"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "language",
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "description": "フィルタリング対象の言語コード (e.g., typescript)"
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "schema": {
+              "enum": [
+                "7d_increase",
+                "30d_increase",
+                "7d_rate",
+                "30d_rate",
+                "total_stars"
+              ],
+              "type": "string"
+            },
+            "required": true,
+            "description": "ソート基準"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        ],
+        "description": "<h2 id=\"\">概要</h2> <p>リクエストされた言語、ソート基準（7日/30日増加数/率、総スター数）、ページネーションパラメータを検証する。DB（repositories, metrics_daily）から最新の日次メトリクスを結合して取得し、ソート・フィルタリング・ページネーションを適用してクライアントに返却する。</p>",
+        "tags": [
+          "閲覧"
+        ]
+      }
+    },
+    "/api/repositories/{repoId}": {
+      "get": {
+        "summary": "リポジトリ詳細情報と90日間のスター履歴を取得",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "topics": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "daily_increase": {
+                            "type": "integer"
+                          },
+                          "stargazers_count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "full_name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "リポジトリ詳細とスター履歴"
+          },
+          "404": {
+            "description": "リポジトリが見つかりません"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "repoId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "description": "リポジトリUUID"
+          }
+        ],
+        "description": "<h2 id=\"\">概要</h2> <p>パスパラメータからリポジトリIDを取得し、repositoriesテーブルから基本情報を、repo_snapshotsテーブルから過去90日間の時系列データを取得する。グラフ描画用に整形して返却する。</p>",
+        "tags": [
+          "閲覧"
+        ]
+      }
+    },
+    "/api/repositories/search": {
+      "get": {
+        "summary": "リポジトリ名検索",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RepositoryBasic"
+                  }
+                }
+              }
+            },
+            "description": "検索結果リスト"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "検索クエリ（リポジトリ名の一部）"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "最大返却件数"
+          }
+        ],
+        "description": "<h2 id=\"\">概要</h2> <p>クエリパラメータから検索文字列を取得し、repositoriesテーブルに対して部分一致検索を実行する。結果をリストとして返却する。</p>",
+        "tags": [
+          "検索"
+        ]
+      }
+    },
+    "/api/trends/weekly": {
+      "get": {
+        "summary": "週別トレンドランキング取得",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ranking": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "repo_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "increase": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "metadata": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "週別ランキングデータ"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "year",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true,
+            "description": "ISO年"
+          },
+          {
+            "in": "query",
+            "name": "week",
+            "schema": {
+              "type": "integer",
+              "maximum": 53,
+              "minimum": 1
+            },
+            "required": true,
+            "description": "ISO週番号"
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "description": "言語フィルタ"
+          }
+        ],
+        "description": "<h2 id=\"\">概要</h2> <p>クエリパラメータから年、週、言語の情報を取得する。ranking_weeklyテーブルから該当する週のJSONデータを取得し、ランキング一覧として整形して返却する。</p>",
+        "tags": [
+          "週別分析"
+        ]
+      }
+    },
+    "/api/trends/weekly/available-weeks": {
+      "get": {
+        "summary": "利用可能な週リスト取得",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "week": {
+                        "type": "integer"
+                      },
+                      "year": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "week": 5,
+                    "year": 2026
+                  },
+                  {
+                    "week": 6,
+                    "year": 2026
+                  }
+                ]
+              }
+            },
+            "description": "年と週番号のリスト"
+          }
+        },
+        "description": "<h2 id=\"\">概要</h2> <p>ranking_weeklyテーブルから DISTINCT (year, week_number) のリストを取得する。必要に応じてソートして返却する。</p>",
+        "tags": [
+          "週別分析"
+        ]
+      }
+    },
+    "/api/auth/callback/github": {
+      "get": {
+        "summary": "GitHub OAuthコールバック処理",
+        "responses": {
+          "302": {
+            "description": "認証成功。メイン画面へのリダイレクトとCookie/HeaderにJWTセッションを設定"
+          },
+          "400": {
+            "description": "無効な認証コードまたはState"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "GitHub認証コード"
+          }
+        ],
+        "description": "<h2 id=\"\">概要</h2> <p>GitHubからコールバックされた認証コードとstateを検証し、GitHub APIでアクセストークンを取得する。ユーザー情報を取得し、usersテーブルにUpsert（更新または挿入）する。ログインセッション（JWT）を生成し、クライアントにセットしてメイン画面にリダイレクトする。</p>",
+        "tags": [
+          "認証"
+        ]
+      }
+    },
+    "/api/repositories/{repoId}/summary": {
+      "get": {
+        "summary": "AI要約の取得",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "FULL",
+                        "PREVIEW",
+                        "NOT_GENERATED"
+                      ],
+                      "type": "string"
+                    },
+                    "summary_data": {
+                      "type": "object",
+                      "description": "構造化された要約データ（プレビューの場合は一部のみ）"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "AI要約データ（権限に応じた全文またはプレビュー）"
+          },
+          "401": {
+            "description": "認証が必要"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "repoId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "description": "<h2 id=\"\">概要</h2> <p>リポジトリIDとユーザーのセッション情報に基づき、fun-034 (機能アクセス権限判定) を実行する。ai_summariesテーブルから要約データを取得し、権限に応じて全文 (fun-035) またはプレビュー (fun-037) を整形して返却する。</p>",
+        "tags": [
+          "AI機能"
+        ]
+      }
+    },
+    "/api/repositories/{repoId}/summary/generate": {
+      "post": {
+        "summary": "AI要約のオンデマンド生成を要求",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "estimated_time": {
+                      "type": "integer",
+                      "description": "生成完了までの推定時間 (秒)"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "生成要求を受け付け、非同期処理を開始した"
+          },
+          "403": {
+            "description": "課金プラン外またはクレジット/制限不足"
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "repoId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "description": "<h2 id=\"\">概要</h2> <p>ユーザー認証と課金プランを確認する。fun-040（クレジット/制限の確認）を実行し、許可された場合、クレジットを消費または制限を適用する。非同期のAI生成ジョブをトリガーし、生成状態を返す。</p>",
+        "tags": [
+          "AI機能"
+        ]
+      }
+    },
+    "/api/billing/checkout": {
+      "post": {
+        "summary": "Stripe Checkoutセッションの生成",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkout_url": {
+                      "type": "string",
+                      "format": "url"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "決済用URLを返却"
+          },
+          "400": {
+            "description": "無効なリクエストまたはプランID"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plan_id",
+                  "redirect_url"
+                ],
+                "properties": {
+                  "plan_id": {
+                    "type": "string",
+                    "description": "選択されたStripe製品/価格ID"
+                  },
+                  "redirect_url": {
+                    "type": "string",
+                    "description": "決済成功時のリダイレクト先URL"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "description": "<h2 id=\"\">概要</h2> <p>ログインユーザーIDと選択プラン情報を受け取り、Stripe APIを呼び出す。Checkoutセッションを生成し、ユーザーをStripeの決済ページにリダイレクトするためのURLを返す。</p>",
+        "tags": [
+          "課金/拡張"
+        ]
+      }
+    },
+    "/api/webhook/stripe": {
+      "post": {
+        "summary": "Stripe Webhookエンドポイント",
+        "responses": {
+          "200": {
+            "description": "イベント処理成功"
+          },
+          "400": {
+            "description": "無効な署名またはペイロード"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Stripe Event Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "description": "<h2 id=\"\">概要</h2> <p>StripeからWebhookペイロードを受信し、署名を検証する。イベントタイプ（例: checkout.session.completed, customer.subscription.updated）に基づき、ユーザーDB (users) のプラン情報やクレジットを更新する。</p>",
+        "tags": [
+          "課金/拡張"
+        ]
+      }
+    },
+    "/api/internal/batch/collect-daily": {
+      "post": {
+        "summary": "日次データ収集バッチのトリガー",
+        "security": [
+          {
+            "internalAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "データ収集/保存成功"
+          },
+          "500": {
+            "description": "処理失敗"
+          }
+        },
+        "description": "GitHub ActionsやCronトリガーから実行される内部エンドポイント",
+        "tags": [
+          "データ処理"
+        ]
+      }
+    },
+    "/api/internal/batch/calculate-metrics": {
+      "post": {
+        "summary": "日次メトリクス計算バッチのトリガー",
+        "security": [
+          {
+            "internalAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "メトリクス計算/保存成功"
+          }
+        },
+        "description": "日次データ収集後に実行される内部エンドポイント",
+        "tags": [
+          "データ処理"
+        ]
+      }
+    },
+    "/api/internal/batch/calculate-weekly": {
+      "post": {
+        "summary": "週別トレンド計算バッチのトリガー",
+        "security": [
+          {
+            "internalAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "週別集計成功"
+          }
+        },
+        "description": "週次で実行される内部エンドポイント",
+        "tags": [
+          "データ処理"
+        ]
+      }
+    },
+    "/api/internal/batch/generate-ai": {
+      "post": {
+        "summary": "AI要約自動生成バッチのトリガー",
+        "security": [
+          {
+            "internalAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AI要約生成処理の開始/完了"
+          }
+        },
+        "description": "週次集計後に実行される内部エンドポイント",
+        "tags": [
+          "AI機能"
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "RepositoryBasic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "閲覧",
+      "description": ""
+    },
+    {
+      "name": "検索",
+      "description": ""
+    },
+    {
+      "name": "週別分析",
+      "description": ""
+    },
+    {
+      "name": "認証",
+      "description": ""
+    },
+    {
+      "name": "AI機能",
+      "description": ""
+    },
+    {
+      "name": "課金/拡張",
+      "description": ""
+    },
+    {
+      "name": "データ処理",
+      "description": ""
+    }
+  ]
+}
