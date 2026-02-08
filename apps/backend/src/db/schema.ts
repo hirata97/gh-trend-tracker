@@ -1,4 +1,11 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  index,
+  primaryKey,
+} from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const repositories = sqliteTable(
@@ -44,7 +51,33 @@ export const repoSnapshots = sqliteTable(
   })
 );
 
+export const metricsDaily = sqliteTable(
+  'metrics_daily',
+  {
+    repoId: integer('repo_id').notNull(),
+    calculatedDate: text('calculated_date').notNull(),
+    stars7dIncrease: integer('stars_7d_increase').notNull().default(0),
+    stars30dIncrease: integer('stars_30d_increase').notNull().default(0),
+    stars7dRate: real('stars_7d_rate').notNull().default(0.0),
+    stars30dRate: real('stars_30d_rate').notNull().default(0.0),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.repoId, table.calculatedDate] }),
+    dateIdx: index('idx_metrics_date').on(table.calculatedDate),
+  })
+);
+
+export const languages = sqliteTable('languages', {
+  code: text('code').primaryKey().notNull(),
+  nameJa: text('name_ja').notNull(),
+  sortOrder: integer('sort_order').notNull().default(100),
+});
+
 export type Repository = typeof repositories.$inferSelect;
 export type NewRepository = typeof repositories.$inferInsert;
 export type RepoSnapshot = typeof repoSnapshots.$inferSelect;
 export type NewRepoSnapshot = typeof repoSnapshots.$inferInsert;
+export type MetricsDaily = typeof metricsDaily.$inferSelect;
+export type NewMetricsDaily = typeof metricsDaily.$inferInsert;
+export type Language = typeof languages.$inferSelect;
+export type NewLanguage = typeof languages.$inferInsert;
