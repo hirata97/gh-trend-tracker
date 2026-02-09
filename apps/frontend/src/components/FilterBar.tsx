@@ -26,7 +26,14 @@ function getParamsFromUrl(): {
   order: SortOrder;
 } {
   if (typeof window === 'undefined') {
-    return { language: undefined, q: '', minStars: undefined, maxStars: undefined, sort: 'stars', order: 'desc' };
+    return {
+      language: undefined,
+      q: '',
+      minStars: undefined,
+      maxStars: undefined,
+      sort: 'stars',
+      order: 'desc',
+    };
   }
   const params = new URLSearchParams(window.location.search);
   const sortParam = params.get('sort');
@@ -39,7 +46,9 @@ function getParamsFromUrl(): {
     q: params.get('q') || '',
     minStars: minStarsParam ? parseInt(minStarsParam, 10) : undefined,
     maxStars: maxStarsParam ? parseInt(maxStarsParam, 10) : undefined,
-    sort: (sortParam && ['stars', 'growth_rate', 'weekly_growth'].includes(sortParam) ? sortParam : 'stars') as TrendSortField,
+    sort: (sortParam && ['stars', 'growth_rate', 'weekly_growth'].includes(sortParam)
+      ? sortParam
+      : 'stars') as TrendSortField,
     order: (orderParam && ['asc', 'desc'].includes(orderParam) ? orderParam : 'desc') as SortOrder,
   };
 }
@@ -83,14 +92,16 @@ export default function FilterBar({ languages }: Props) {
 
   // Build URL with current filters
   const buildUrl = useCallback(
-    (overrides: Partial<{
-      language: string | null;
-      q: string;
-      minStars: number | null;
-      maxStars: number | null;
-      sort: TrendSortField;
-      order: SortOrder;
-    }> = {}) => {
+    (
+      overrides: Partial<{
+        language: string | null;
+        q: string;
+        minStars: number | null;
+        maxStars: number | null;
+        sort: TrendSortField;
+        order: SortOrder;
+      }> = {}
+    ) => {
       const params = new URLSearchParams();
 
       const lang = overrides.language !== undefined ? overrides.language : language;
@@ -192,7 +203,13 @@ export default function FilterBar({ languages }: Props) {
   }, []);
 
   // Check if any filters are active
-  const hasActiveFilters = language || searchValue || minStars !== undefined || maxStars !== undefined || sort !== 'stars' || order !== 'desc';
+  const hasActiveFilters =
+    language ||
+    searchValue ||
+    minStars !== undefined ||
+    maxStars !== undefined ||
+    sort !== 'stars' ||
+    order !== 'desc';
 
   return (
     <div className="filter-bar">
@@ -210,11 +227,7 @@ export default function FilterBar({ languages }: Props) {
 
         {/* Language filter */}
         <div className="filter-item">
-          <select
-            value={language || ''}
-            onChange={handleLanguageChange}
-            className="filter-select"
-          >
+          <select value={language || ''} onChange={handleLanguageChange} className="filter-select">
             <option value="">All Languages</option>
             {validLanguages.map((lang) => (
               <option key={lang} value={lang}>
@@ -226,11 +239,7 @@ export default function FilterBar({ languages }: Props) {
 
         {/* Sort selector */}
         <div className="filter-item">
-          <select
-            value={sort}
-            onChange={handleSortChange}
-            className="filter-select"
-          >
+          <select value={sort} onChange={handleSortChange} className="filter-select">
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}

@@ -29,8 +29,10 @@ export async function getTrends(params?: TrendsQueryParams): Promise<TrendsRespo
   // Build query string from params
   const searchParams = new URLSearchParams();
   if (queryParams.q) searchParams.set('q', queryParams.q);
-  if (queryParams.minStars !== undefined) searchParams.set('minStars', String(queryParams.minStars));
-  if (queryParams.maxStars !== undefined) searchParams.set('maxStars', String(queryParams.maxStars));
+  if (queryParams.minStars !== undefined)
+    searchParams.set('minStars', String(queryParams.minStars));
+  if (queryParams.maxStars !== undefined)
+    searchParams.set('maxStars', String(queryParams.maxStars));
   if (queryParams.sort) searchParams.set('sort', queryParams.sort);
   if (queryParams.order) searchParams.set('order', queryParams.order);
   if (queryParams.limit !== undefined) searchParams.set('limit', String(queryParams.limit));

@@ -72,13 +72,7 @@
             "in": "query",
             "name": "sort_by",
             "schema": {
-              "enum": [
-                "7d_increase",
-                "30d_increase",
-                "7d_rate",
-                "30d_rate",
-                "total_stars"
-              ],
+              "enum": ["7d_increase", "30d_increase", "7d_rate", "30d_rate", "total_stars"],
               "type": "string"
             },
             "required": true,
@@ -102,9 +96,7 @@
           }
         ],
         "description": "<h2 id=\"\">概要</h2> <p>リクエストされた言語、ソート基準（7日/30日増加数/率、総スター数）、ページネーションパラメータを検証する。DB（repositories, metrics_daily）から最新の日次メトリクスを結合して取得し、ソート・フィルタリング・ページネーションを適用してクライアントに返却する。</p>",
-        "tags": [
-          "閲覧"
-        ]
+        "tags": ["閲覧"]
       }
     },
     "/api/repositories/{repoId}": {
@@ -170,9 +162,7 @@
           }
         ],
         "description": "<h2 id=\"\">概要</h2> <p>パスパラメータからリポジトリIDを取得し、repositoriesテーブルから基本情報を、repo_snapshotsテーブルから過去90日間の時系列データを取得する。グラフ描画用に整形して返却する。</p>",
-        "tags": [
-          "閲覧"
-        ]
+        "tags": ["閲覧"]
       }
     },
     "/api/repositories/search": {
@@ -214,9 +204,7 @@
           }
         ],
         "description": "<h2 id=\"\">概要</h2> <p>クエリパラメータから検索文字列を取得し、repositoriesテーブルに対して部分一致検索を実行する。結果をリストとして返却する。</p>",
-        "tags": [
-          "検索"
-        ]
+        "tags": ["検索"]
       }
     },
     "/api/trends/weekly": {
@@ -286,9 +274,7 @@
           }
         ],
         "description": "<h2 id=\"\">概要</h2> <p>クエリパラメータから年、週、言語の情報を取得する。ranking_weeklyテーブルから該当する週のJSONデータを取得し、ランキング一覧として整形して返却する。</p>",
-        "tags": [
-          "週別分析"
-        ]
+        "tags": ["週別分析"]
       }
     },
     "/api/trends/weekly/available-weeks": {
@@ -328,9 +314,7 @@
           }
         },
         "description": "<h2 id=\"\">概要</h2> <p>ranking_weeklyテーブルから DISTINCT (year, week_number) のリストを取得する。必要に応じてソートして返却する。</p>",
-        "tags": [
-          "週別分析"
-        ]
+        "tags": ["週別分析"]
       }
     },
     "/api/auth/callback/github": {
@@ -356,9 +340,7 @@
           }
         ],
         "description": "<h2 id=\"\">概要</h2> <p>GitHubからコールバックされた認証コードとstateを検証し、GitHub APIでアクセストークンを取得する。ユーザー情報を取得し、usersテーブルにUpsert（更新または挿入）する。ログインセッション（JWT）を生成し、クライアントにセットしてメイン画面にリダイレクトする。</p>",
-        "tags": [
-          "認証"
-        ]
+        "tags": ["認証"]
       }
     },
     "/api/repositories/{repoId}/summary": {
@@ -372,11 +354,7 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "enum": [
-                        "FULL",
-                        "PREVIEW",
-                        "NOT_GENERATED"
-                      ],
+                      "enum": ["FULL", "PREVIEW", "NOT_GENERATED"],
                       "type": "string"
                     },
                     "summary_data": {
@@ -405,9 +383,7 @@
           }
         ],
         "description": "<h2 id=\"\">概要</h2> <p>リポジトリIDとユーザーのセッション情報に基づき、fun-034 (機能アクセス権限判定) を実行する。ai_summariesテーブルから要約データを取得し、権限に応じて全文 (fun-035) またはプレビュー (fun-037) を整形して返却する。</p>",
-        "tags": [
-          "AI機能"
-        ]
+        "tags": ["AI機能"]
       }
     },
     "/api/repositories/{repoId}/summary/generate": {
@@ -454,9 +430,7 @@
           }
         ],
         "description": "<h2 id=\"\">概要</h2> <p>ユーザー認証と課金プランを確認する。fun-040（クレジット/制限の確認）を実行し、許可された場合、クレジットを消費または制限を適用する。非同期のAI生成ジョブをトリガーし、生成状態を返す。</p>",
-        "tags": [
-          "AI機能"
-        ]
+        "tags": ["AI機能"]
       }
     },
     "/api/billing/checkout": {
@@ -493,10 +467,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "plan_id",
-                  "redirect_url"
-                ],
+                "required": ["plan_id", "redirect_url"],
                 "properties": {
                   "plan_id": {
                     "type": "string",
@@ -513,9 +484,7 @@
           "required": true
         },
         "description": "<h2 id=\"\">概要</h2> <p>ログインユーザーIDと選択プラン情報を受け取り、Stripe APIを呼び出す。Checkoutセッションを生成し、ユーザーをStripeの決済ページにリダイレクトするためのURLを返す。</p>",
-        "tags": [
-          "課金/拡張"
-        ]
+        "tags": ["課金/拡張"]
       }
     },
     "/api/webhook/stripe": {
@@ -541,9 +510,7 @@
           "required": true
         },
         "description": "<h2 id=\"\">概要</h2> <p>StripeからWebhookペイロードを受信し、署名を検証する。イベントタイプ（例: checkout.session.completed, customer.subscription.updated）に基づき、ユーザーDB (users) のプラン情報やクレジットを更新する。</p>",
-        "tags": [
-          "課金/拡張"
-        ]
+        "tags": ["課金/拡張"]
       }
     },
     "/api/internal/batch/collect-daily": {
@@ -563,9 +530,7 @@
           }
         },
         "description": "GitHub ActionsやCronトリガーから実行される内部エンドポイント",
-        "tags": [
-          "データ処理"
-        ]
+        "tags": ["データ処理"]
       }
     },
     "/api/internal/batch/calculate-metrics": {
@@ -582,9 +547,7 @@
           }
         },
         "description": "日次データ収集後に実行される内部エンドポイント",
-        "tags": [
-          "データ処理"
-        ]
+        "tags": ["データ処理"]
       }
     },
     "/api/internal/batch/calculate-weekly": {
@@ -601,9 +564,7 @@
           }
         },
         "description": "週次で実行される内部エンドポイント",
-        "tags": [
-          "データ処理"
-        ]
+        "tags": ["データ処理"]
       }
     },
     "/api/internal/batch/generate-ai": {
@@ -620,9 +581,7 @@
           }
         },
         "description": "週次集計後に実行される内部エンドポイント",
-        "tags": [
-          "AI機能"
-        ]
+        "tags": ["AI機能"]
       }
     }
   },

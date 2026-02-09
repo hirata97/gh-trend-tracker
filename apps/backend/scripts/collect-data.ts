@@ -83,9 +83,7 @@ function loadEnv(): { githubToken: string } {
   const githubToken = process.env.GITHUB_TOKEN;
 
   if (!githubToken) {
-    throw new Error(
-      'GITHUB_TOKEN環境変数が必要です。backend/.envファイルに設定してください。'
-    );
+    throw new Error('GITHUB_TOKEN環境変数が必要です。backend/.envファイルに設定してください。');
   }
 
   return { githubToken };
@@ -155,7 +153,9 @@ async function main() {
   try {
     console.log('データベース接続を初期化中...');
     await dbManager.initialize();
-    console.log(`✓ データベースマネージャーを初期化完了（${args.useRemote ? 'リモート' : 'ローカル'}）\n`);
+    console.log(
+      `✓ データベースマネージャーを初期化完了（${args.useRemote ? 'リモート' : 'ローカル'}）\n`
+    );
 
     // データベースに保存
     console.log('データベースに保存中...\n');
