@@ -107,6 +107,35 @@ export interface RepoDetailResponse {
   weeklyGrowthRate: number | null;
 }
 
+// /api/trends/daily レスポンス型
+export interface TrendsDailyItem {
+  id: string;
+  full_name: string;
+  description: string | null;
+  language: string | null;
+  stargazers_count: number;
+  forks_count: number;
+  stars_7d_increase: number;
+  stars_30d_increase: number;
+  stars_7d_rate: number;
+  stars_30d_rate: number;
+}
+
+export interface TrendsDailyPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface TrendsDailyResponse {
+  data: TrendsDailyItem[];
+  pagination: TrendsDailyPagination;
+  metadata: {
+    snapshot_date: string;
+  };
+}
+
 export interface LanguagesResponse {
   languages: (string | null)[];
 }

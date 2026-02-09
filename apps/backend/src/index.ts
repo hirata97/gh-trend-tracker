@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import health from './routes/health';
+import trendsDaily from './routes/trends-daily';
 import trends from './routes/trends';
 import repositories from './routes/repositories';
 import languages from './routes/languages';
@@ -24,6 +25,7 @@ app.use('/*', dbMiddleware);
 
 // ルート登録
 app.route('/health', health);
+app.route('/api/trends/daily', trendsDaily);
 app.route('/api/trends', trends);
 app.route('/api/repos', repositories);
 app.route('/api/languages', languages);
