@@ -244,6 +244,72 @@ describe('/api/trends/daily endpoint', () => {
     });
   });
 
+  describe('pagination edge cases', () => {
+    it('returns correct data for page 2', async () => {
+      const response = await SELF.fetch(
+        'http://example.com/api/trends/daily?sort_by=7d_increase&page=2&limit=2'
+      );
+      expect(response.status).toBe(200);
+
+      const data = (await response.json()) as {
+        data: Array<{ full_name: string }>;
+        pagination: { page: number; total: number; totalPages: number };
+      };
+      expect(data.pagination.page).toBe(2);
+      expect(data.pagination.total).toBe(3);
+      expect(data.pagination.totalPages).toBe(2);
+      // 3件中 limit=2 の2ページ目 → 残り1件（vue: 7d_increase=300 が最小）
+      expect(data.data.length).toBe(1);
+      expect(data.data[0].full_name).toBe('vuejs/vue');
+    });
+
+    it('returns empty data for out-of-range page', async () => {
+      const response = await SELF.fetch(
+        'http://example.com/api/trends/daily?sort_by=7d_increase&page=100&limit=20'
+      );
+      expect(response.status).toBe(200);
+
+      const data = (await response.json()) as {
+        data: Array<unknown>;
+        pagination: { page: number; total: number };
+      };
+      expect(data.pagination.page).toBe(100);
+      expect(data.pagination.total).toBe(3);
+      expect(data.data.length).toBe(0);
+    });
+
+    it('works with limit=1', async () => {
+      const response = await SELF.fetch(
+        'http://example.com/api/trends/daily?sort_by=7d_increase&limit=1'
+      );
+      expect(response.status).toBe(200);
+
+      const data = (await response.json()) as {
+        data: Array<{ full_name: string }>;
+        pagination: { limit: number; total: number; totalPages: number };
+      };
+      expect(data.pagination.limit).toBe(1);
+      expect(data.pagination.total).toBe(3);
+      expect(data.pagination.totalPages).toBe(3);
+      expect(data.data.length).toBe(1);
+      expect(data.data[0].full_name).toBe('sveltejs/svelte');
+    });
+
+    it('returns empty for non-existent language filter', async () => {
+      const response = await SELF.fetch(
+        'http://example.com/api/trends/daily?sort_by=7d_increase&language=COBOL'
+      );
+      expect(response.status).toBe(200);
+
+      const data = (await response.json()) as {
+        data: Array<unknown>;
+        pagination: { total: number };
+      };
+      expect(data.pagination.total).toBe(0);
+      expect(data.data.length).toBe(0);
+    });
+  });
+
   describe('backward compatibility', () => {
     it('existing /api/trends endpoint still works', async () => {
       const response = await SELF.fetch('http://example.com/api/trends');

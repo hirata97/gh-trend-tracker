@@ -64,11 +64,18 @@ trendsDaily.get('/', async (c) => {
 
     const sortColumn = sortColumnMap[sort_by];
 
-    // 総件数を取得
+    // 総件数を取得（メインクエリと同じ3テーブルJOINで正確にカウント）
     const [countResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(metricsDaily)
       .innerJoin(repositories, eq(metricsDaily.repoId, repositories.repoId))
+      .innerJoin(
+        repoSnapshots,
+        and(
+          eq(repoSnapshots.repoId, metricsDaily.repoId),
+          eq(repoSnapshots.snapshotDate, snapshotDate)
+        )
+      )
       .where(and(...conditions));
 
     const total = countResult?.count ?? 0;
