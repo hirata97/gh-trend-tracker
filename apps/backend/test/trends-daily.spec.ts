@@ -68,9 +68,9 @@ beforeAll(async () => {
   await db.prepare(`INSERT INTO metrics_daily (repo_id, calculated_date, stars_7d_increase, stars_30d_increase, stars_7d_rate, stars_30d_rate) VALUES (3, '2026-02-09', 800, 3000, 0.0101, 0.0389)`).run();
 });
 
-describe('/api/trends/daily endpoint', () => {
-  describe('validation', () => {
-    it('returns 400 when sort_by is missing', async () => {
+describe('/api/trends/daily', () => {
+  describe('バリデーション', () => {
+    it('sort_byを省略したら400エラーが返されること', async () => {
       const response = await SELF.fetch('http://example.com/api/trends/daily');
       expect(response.status).toBe(400);
 
@@ -79,7 +79,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data).toHaveProperty('code', 'VALIDATION_ERROR');
     });
 
-    it('returns 400 when sort_by has invalid value', async () => {
+    it('sort_byに不正な値を指定したら400エラーが返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=invalid'
       );
@@ -89,14 +89,14 @@ describe('/api/trends/daily endpoint', () => {
       expect(data).toHaveProperty('code', 'VALIDATION_ERROR');
     });
 
-    it('returns 400 when page is not a positive integer', async () => {
+    it('pageに0を指定したら400エラーが返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase&page=0'
       );
       expect(response.status).toBe(400);
     });
 
-    it('returns 400 when limit exceeds 100', async () => {
+    it('limitに101を指定したら400エラーが返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase&limit=101'
       );
@@ -104,8 +104,8 @@ describe('/api/trends/daily endpoint', () => {
     });
   });
 
-  describe('successful responses', () => {
-    it('returns 200 with valid sort_by parameter and correct structure', async () => {
+  describe('正常レスポンス', () => {
+    it('有効なsort_byを指定したらdata・pagination・metadataを含む200レスポンスが返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase'
       );
@@ -136,7 +136,6 @@ describe('/api/trends/daily endpoint', () => {
       expect(data.pagination).toEqual({ page: 1, limit: 20, total: 3, totalPages: 1 });
       expect(data.metadata).toHaveProperty('snapshot_date', '2026-02-09');
 
-      // レスポンスアイテムの構造検証
       const item = data.data[0];
       expect(item).toHaveProperty('id');
       expect(item).toHaveProperty('full_name');
@@ -150,7 +149,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(item).toHaveProperty('stars_30d_rate');
     });
 
-    it('sorts by 7d_increase descending', async () => {
+    it('sort_by=7d_increaseを指定したら7日間増加数の降順でソートされること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase'
       );
@@ -166,7 +165,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data.data[2].full_name).toBe('vuejs/vue');
     });
 
-    it('sorts by total_stars descending', async () => {
+    it('sort_by=total_starsを指定したら総スター数の降順でソートされること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=total_stars'
       );
@@ -182,7 +181,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data.data[2].full_name).toBe('sveltejs/svelte');
     });
 
-    it('accepts all valid sort_by values', async () => {
+    it('全てのsort_by値を指定したら200が返されること', async () => {
       const sortValues = [
         '7d_increase',
         '30d_increase',
@@ -199,7 +198,7 @@ describe('/api/trends/daily endpoint', () => {
       }
     });
 
-    it('applies default pagination (page=1, limit=20)', async () => {
+    it('pageとlimitを省略したらデフォルト値（page=1, limit=20）が適用されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase'
       );
@@ -212,7 +211,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data.pagination.limit).toBe(20);
     });
 
-    it('respects custom page and limit parameters', async () => {
+    it('pageとlimitを指定したら指定値がpaginationに反映されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase&page=1&limit=2'
       );
@@ -229,7 +228,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data.data.length).toBe(2);
     });
 
-    it('filters by language', async () => {
+    it('languageを指定したら該当言語のリポジトリのみ返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase&language=TypeScript'
       );
@@ -244,8 +243,8 @@ describe('/api/trends/daily endpoint', () => {
     });
   });
 
-  describe('pagination edge cases', () => {
-    it('returns correct data for page 2', async () => {
+  describe('ページネーション境界', () => {
+    it('2ページ目を指定したら1ページ目に含まれない残りのデータが返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase&page=2&limit=2'
       );
@@ -263,7 +262,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data.data[0].full_name).toBe('vuejs/vue');
     });
 
-    it('returns empty data for out-of-range page', async () => {
+    it('データ件数を超えるページを指定したら空配列が返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase&page=100&limit=20'
       );
@@ -278,7 +277,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data.data.length).toBe(0);
     });
 
-    it('works with limit=1', async () => {
+    it('limit=1を指定したらデータが1件ずつ返されtotalPagesが正しく計算されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase&limit=1'
       );
@@ -295,7 +294,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data.data[0].full_name).toBe('sveltejs/svelte');
     });
 
-    it('returns empty for non-existent language filter', async () => {
+    it('存在しない言語を指定したら空配列とtotal=0が返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/daily?sort_by=7d_increase&language=COBOL'
       );
@@ -310,8 +309,8 @@ describe('/api/trends/daily endpoint', () => {
     });
   });
 
-  describe('backward compatibility', () => {
-    it('existing /api/trends endpoint still works', async () => {
+  describe('後方互換性', () => {
+    it('既存の/api/trendsにアクセスしたらtrendsプロパティを含む200レスポンスが返されること', async () => {
       const response = await SELF.fetch('http://example.com/api/trends');
       expect(response.status).toBe(200);
 
@@ -319,7 +318,7 @@ describe('/api/trends/daily endpoint', () => {
       expect(data).toHaveProperty('trends');
     });
 
-    it('existing /api/trends/:language endpoint still works', async () => {
+    it('既存の/api/trends/:languageにアクセスしたらtrendsプロパティを含む200レスポンスが返されること', async () => {
       const response = await SELF.fetch(
         'http://example.com/api/trends/TypeScript'
       );
