@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
+import ChartTooltip from './ChartTooltip';
 
 interface ChartData {
   date: string;
@@ -55,9 +56,10 @@ export default function StarChart({ data, loading, error }: Props) {
     return <div className="star-chart-container star-chart-empty">No history data available</div>;
   }
 
-  const formattedData = data.map((item) => ({
+  const formattedData = data.map((item, index) => ({
     ...item,
     displayDate: formatDate(item.date),
+    dailyIncrease: index > 0 ? item.stars - data[index - 1].stars : null,
   }));
 
   // Use React.createElement with type assertions to work around
@@ -87,8 +89,7 @@ export default function StarChart({ data, loading, error }: Props) {
             width: 50,
           }),
           React.createElement(Tooltip as unknown as AnyComponent, {
-            formatter: (value: number) => [value.toLocaleString(), 'Stars'] as const,
-            labelFormatter: (label: string) => `Date: ${label}`,
+            content: React.createElement(ChartTooltip),
           }),
           React.createElement(Line as unknown as AnyComponent, {
             type: 'monotone',
