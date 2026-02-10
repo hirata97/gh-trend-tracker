@@ -24,4 +24,6 @@ export type {
   ApiError,
   BatchCollectResponse,
   BatchMetricsResponse,
+  WeeklyRankEntry,
+  BatchWeeklyRankingResponse,
 } from './types/api';

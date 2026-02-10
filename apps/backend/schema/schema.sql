@@ -41,6 +41,19 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
   FOREIGN KEY (repo_id) REFERENCES repositories(repo_id) ON DELETE CASCADE
 );
 
+-- Weekly ranking aggregation
+CREATE TABLE IF NOT EXISTS ranking_weekly (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  year INTEGER NOT NULL,
+  week_number INTEGER NOT NULL,
+  language TEXT NOT NULL DEFAULT 'all',
+  rank_data TEXT NOT NULL,  -- JSON array of ranking entries
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(year, week_number, language)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ranking_weekly_year_week ON ranking_weekly(year DESC, week_number DESC);
+
 -- Language master data
 CREATE TABLE IF NOT EXISTS languages (
   code TEXT PRIMARY KEY NOT NULL,
