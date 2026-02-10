@@ -42,6 +42,9 @@ try {
   console.error('Failed to fetch data:', e);
 }
 
+// Extract snapshot date from the latest trend data
+const snapshotDate = trends.length > 0 ? (trends[0].snapshotDate ?? undefined) : undefined;
+
 // Build result description
 let resultDescription = '';
 if (searchQuery) {
@@ -60,7 +63,7 @@ if (minStars !== undefined || maxStars !== undefined) {
 }
 ---
 
-<Layout title="GitHub Trends Tracker">
+<Layout title="GitHub Trends Tracker" snapshotDate={snapshotDate}>
   <div class="container">
     <h1>Trending Repositories</h1>
 

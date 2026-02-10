@@ -18,6 +18,7 @@ interface RepositoryListItemProps {
     stars_30d_increase: number;
   };
   showMetrics?: boolean;
+  onFavoriteToggle?: (repoId: string) => void;
 }
 
 function formatNumber(num: number): string {
@@ -36,6 +37,7 @@ export default function RepositoryListItem({
   repo,
   metrics,
   showMetrics = false,
+  onFavoriteToggle,
 }: RepositoryListItemProps) {
   return (
     <div className="repo-list-item">
@@ -44,6 +46,16 @@ export default function RepositoryListItem({
           {repo.full_name}
         </a>
         {repo.language && <span className="language-badge">{repo.language}</span>}
+        {onFavoriteToggle && (
+          <button
+            className="repo-list-item__favorite"
+            onClick={() => onFavoriteToggle(repo.id)}
+            aria-label="Toggle favorite"
+            title="Toggle favorite"
+          >
+            &#9734;
+          </button>
+        )}
       </div>
 
       {repo.description && <p className="repo-list-item__description">{repo.description}</p>}

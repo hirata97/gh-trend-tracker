@@ -4,6 +4,8 @@
  * Extends the existing LanguageFilter with a more flexible interface.
  */
 
+import { useId } from 'react';
+
 interface LanguageFilterDropdownProps {
   currentLanguage: string;
   availableLanguages: string[];
@@ -15,15 +17,16 @@ export default function LanguageFilterDropdown({
   availableLanguages,
   onSelect,
 }: LanguageFilterDropdownProps) {
+  const selectId = useId();
   const sorted = [...availableLanguages].sort();
 
   return (
     <div className="language-filter-dropdown">
-      <label htmlFor="language-filter-dropdown" className="language-filter-dropdown__label">
+      <label htmlFor={selectId} className="language-filter-dropdown__label">
         Language:
       </label>
       <select
-        id="language-filter-dropdown"
+        id={selectId}
         className="language-filter-dropdown__select"
         value={currentLanguage}
         onChange={(e) => onSelect(e.target.value)}

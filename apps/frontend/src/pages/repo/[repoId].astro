@@ -47,9 +47,11 @@ if (!repoId || isNaN(Number(repoId))) {
 const title = detail?.repository.fullName
   ? `${detail.repository.fullName} - GitHub Trends Tracker`
   : 'Repository - GitHub Trends Tracker';
+
+const snapshotDate = detail?.currentStats?.snapshotDate;
 ---
 
-<Layout title={title}>
+<Layout title={title} snapshotDate={snapshotDate}>
   <div class="container">
     <nav class="breadcrumb">
       <a href="/">Home</a> &gt; Repository Details

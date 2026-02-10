@@ -621,6 +621,24 @@ input:focus {
   color: #22863a;
 }
 
+.repo-list-item__favorite {
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  font-size: 1.125rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #586069;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.repo-list-item__favorite:hover {
+  color: #e3b341;
+  border-color: #e1e4e8;
+}
+
 /* ========================================
    LanguageFilterDropdown (COM-003)
    ======================================== */
