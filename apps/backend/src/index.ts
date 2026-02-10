@@ -8,9 +8,11 @@ import repositories from './routes/repositories';
 import languages from './routes/languages';
 import collectDaily from './routes/batch/collect-daily';
 import calculateMetrics from './routes/batch/calculate-metrics';
+import calculateWeekly from './routes/batch/calculate-weekly';
 import { dbMiddleware } from './middleware/database';
 import { runDailyCollection } from './services/batch-collector';
 import { runMetricsCalculation } from './services/metrics-calculator';
+import { runWeeklyRankingCalculation } from './services/weekly-ranking-calculator';
 import type { AppEnv } from './types/app';
 
 const app = new Hono<AppEnv>();
@@ -36,6 +38,7 @@ app.route('/api/repos', repositories);
 app.route('/api/languages', languages);
 app.route('/api/internal/batch/collect-daily', collectDaily);
 app.route('/api/internal/batch/calculate-metrics', calculateMetrics);
+app.route('/api/internal/batch/calculate-weekly', calculateWeekly);
 
 export default {
   fetch: app.fetch,
@@ -51,6 +54,14 @@ export default {
             console.log('メトリクス計算結果:', JSON.stringify(result));
           } catch (error) {
             console.error('メトリクス計算エラー:', error);
+          }
+        } else if (event.cron === '0 1 * * 1') {
+          // 週別ランキング集計（毎週月曜 UTC 1:00）
+          try {
+            const result = await runWeeklyRankingCalculation({ db });
+            console.log('週別ランキング集計結果:', JSON.stringify(result));
+          } catch (error) {
+            console.error('週別ランキング集計エラー:', error);
           }
         } else {
           // 日次データ収集（UTC 0:00）

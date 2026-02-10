@@ -60,6 +60,28 @@ export const metricsDaily = sqliteTable(
   })
 );
 
+export const rankingWeekly = sqliteTable(
+  'ranking_weekly',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    year: integer('year').notNull(),
+    weekNumber: integer('week_number').notNull(),
+    language: text('language').notNull().default('all'),
+    rankData: text('rank_data').notNull(),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    yearWeekIdx: index('idx_ranking_weekly_year_week').on(table.year, table.weekNumber),
+    uniqueYearWeekLang: index('idx_ranking_weekly_unique').on(
+      table.year,
+      table.weekNumber,
+      table.language
+    ),
+  })
+);
+
 export const languages = sqliteTable('languages', {
   code: text('code').primaryKey().notNull(),
   nameJa: text('name_ja').notNull(),
@@ -72,5 +94,7 @@ export type RepoSnapshot = typeof repoSnapshots.$inferSelect;
 export type NewRepoSnapshot = typeof repoSnapshots.$inferInsert;
 export type MetricsDaily = typeof metricsDaily.$inferSelect;
 export type NewMetricsDaily = typeof metricsDaily.$inferInsert;
+export type RankingWeekly = typeof rankingWeekly.$inferSelect;
+export type NewRankingWeekly = typeof rankingWeekly.$inferInsert;
 export type Language = typeof languages.$inferSelect;
 export type NewLanguage = typeof languages.$inferInsert;

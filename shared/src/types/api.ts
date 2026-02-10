@@ -186,3 +186,25 @@ export interface BatchMetricsResponse {
   calculatedDate: string;
   durationMs: number;
 }
+
+/** 週別ランキングのランクエントリ */
+export interface WeeklyRankEntry {
+  rank: number;
+  repo_id: number;
+  repo_full_name: string;
+  star_increase: number;
+}
+
+/** 週別トレンド集計バッチレスポンス型 */
+export interface BatchWeeklyRankingResponse {
+  message: string;
+  summary: {
+    /** 生成されたランキング数（言語別） */
+    totalRankings: number;
+    /** 集計対象リポジトリ数 */
+    totalRepos: number;
+  };
+  year: number;
+  weekNumber: number;
+  durationMs: number;
+}
