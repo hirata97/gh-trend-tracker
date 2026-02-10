@@ -29,4 +29,11 @@
       "database_id": "a9fae3bf-ae66-43af-b167-d329c9e7154d",
     },
   ],
+  /**
+   * Cron Trigger設定
+   * 毎日 UTC 0:00 に日次データ収集バッチを実行
+   */
+  "triggers": {
+    "crons": ["0 0 * * *"],
+  },
 }

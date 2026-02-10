@@ -5,6 +5,11 @@ export default defineWorkersConfig({
     poolOptions: {
       workers: {
         wrangler: { configPath: './wrangler.jsonc' },
+        miniflare: {
+          bindings: {
+            INTERNAL_API_TOKEN: 'test-internal-token',
+          },
+        },
       },
     },
   },

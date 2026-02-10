@@ -49,3 +49,10 @@ export function dbError(message: string, traceId?: string): ApiError {
 export function internalError(message: string, traceId?: string): ApiError {
   return createApiError(message, 'INTERNAL_ERROR', traceId);
 }
+
+/**
+ * 認証エラーを生成する
+ */
+export function unauthorizedError(message: string, traceId?: string): ApiError {
+  return createApiError(message, 'UNAUTHORIZED', traceId);
+}
