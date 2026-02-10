@@ -136,24 +136,17 @@ export async function calculateAndUpsertMetrics(
       ? Math.round((stars30dIncrease / snap30d.stars) * 10000) / 10000
       : 0;
 
-  // metrics_daily にupsert
+  // metrics_daily にupsert（composite PKのonConflictDoUpdateはD1非対応のためDELETE+INSERT）
   await db
-    .insert(metricsDaily)
-    .values({
-      repoId,
-      calculatedDate: todayDate,
-      stars7dIncrease,
-      stars30dIncrease,
-      stars7dRate,
-      stars30dRate,
-    })
-    .onConflictDoUpdate({
-      target: [metricsDaily.repoId, metricsDaily.calculatedDate],
-      set: {
-        stars7dIncrease,
-        stars30dIncrease,
-        stars7dRate,
-        stars30dRate,
-      },
-    });
+    .delete(metricsDaily)
+    .where(and(eq(metricsDaily.repoId, repoId), eq(metricsDaily.calculatedDate, todayDate)));
+
+  await db.insert(metricsDaily).values({
+    repoId,
+    calculatedDate: todayDate,
+    stars7dIncrease,
+    stars30dIncrease,
+    stars7dRate,
+    stars30dRate,
+  });
 }
