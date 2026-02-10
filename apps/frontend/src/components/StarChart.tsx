@@ -42,27 +42,17 @@ type AnyComponent = React.ComponentType<any>;
 
 export default function StarChart({ data, loading, error }: Props) {
   if (loading) {
-    return (
-      <div className="star-chart-container star-chart-loading">
-        Loading chart data...
-      </div>
-    );
+    return <div className="star-chart-container star-chart-loading">Loading chart data...</div>;
   }
 
   if (error) {
     return (
-      <div className="star-chart-container star-chart-error">
-        Failed to load chart: {error}
-      </div>
+      <div className="star-chart-container star-chart-error">Failed to load chart: {error}</div>
     );
   }
 
   if (!data || data.length === 0) {
-    return (
-      <div className="star-chart-container star-chart-empty">
-        No history data available
-      </div>
-    );
+    return <div className="star-chart-container star-chart-empty">No history data available</div>;
   }
 
   const formattedData = data.map((item) => ({

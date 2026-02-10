@@ -4,22 +4,22 @@
 
 ## エンドポイント一覧
 
-| ID | 分類 | メソッド | パス | 概要 |
-|----|------|---------|------|------|
-| bac-001 | 閲覧 | GET | /api/trends/daily | 日次トレンドランキング一覧取得 |
-| bac-002 | 閲覧 | GET | /api/repositories/{repoId} | リポジトリ詳細情報と90日間スター推移取得 |
-| bac-003 | 検索 | GET | /api/repositories/search | リポジトリ名検索実行 |
-| bac-004 | 週別分析 | GET | /api/trends/weekly | 週別トレンドランキング取得 |
-| bac-005 | 週別分析 | GET | /api/trends/weekly/available-weeks | 閲覧可能な過去週リスト取得 |
-| bac-006 | 認証 | GET | /api/auth/callback/github | GitHub OAuth認証コールバック処理 |
-| bac-007 | AI機能 | GET | /api/repositories/{repoId}/summary | リポジトリAI要約取得 |
-| bac-008 | AI機能 | POST | /api/repositories/{repoId}/summary/generate | AI要約オンデマンド生成要求 |
-| bac-009 | 課金 | POST | /api/billing/checkout | Stripe Checkoutセッション生成 |
-| bac-010 | 課金 | POST | /api/webhook/stripe | Stripe Webhook決済イベント処理 |
-| bac-011 | バッチ | POST | /api/internal/batch/collect-daily | 日次データ収集＆スナップショット保存 |
-| bac-012 | バッチ | POST | /api/internal/batch/calculate-metrics | 7日間/30日間スター増加率計算 |
-| bac-013 | バッチ | POST | /api/internal/batch/calculate-weekly | 週別トレンド集計とランキング保存 |
-| bac-014 | バッチ | POST | /api/internal/batch/generate-ai | 週別トップリポジトリAI要約自動生成 |
+| ID      | 分類     | メソッド | パス                                        | 概要                                     |
+| ------- | -------- | -------- | ------------------------------------------- | ---------------------------------------- |
+| bac-001 | 閲覧     | GET      | /api/trends/daily                           | 日次トレンドランキング一覧取得           |
+| bac-002 | 閲覧     | GET      | /api/repositories/{repoId}                  | リポジトリ詳細情報と90日間スター推移取得 |
+| bac-003 | 検索     | GET      | /api/repositories/search                    | リポジトリ名検索実行                     |
+| bac-004 | 週別分析 | GET      | /api/trends/weekly                          | 週別トレンドランキング取得               |
+| bac-005 | 週別分析 | GET      | /api/trends/weekly/available-weeks          | 閲覧可能な過去週リスト取得               |
+| bac-006 | 認証     | GET      | /api/auth/callback/github                   | GitHub OAuth認証コールバック処理         |
+| bac-007 | AI機能   | GET      | /api/repositories/{repoId}/summary          | リポジトリAI要約取得                     |
+| bac-008 | AI機能   | POST     | /api/repositories/{repoId}/summary/generate | AI要約オンデマンド生成要求               |
+| bac-009 | 課金     | POST     | /api/billing/checkout                       | Stripe Checkoutセッション生成            |
+| bac-010 | 課金     | POST     | /api/webhook/stripe                         | Stripe Webhook決済イベント処理           |
+| bac-011 | バッチ   | POST     | /api/internal/batch/collect-daily           | 日次データ収集＆スナップショット保存     |
+| bac-012 | バッチ   | POST     | /api/internal/batch/calculate-metrics       | 7日間/30日間スター増加率計算             |
+| bac-013 | バッチ   | POST     | /api/internal/batch/calculate-weekly        | 週別トレンド集計とランキング保存         |
+| bac-014 | バッチ   | POST     | /api/internal/batch/generate-ai             | 週別トップリポジトリAI要約自動生成       |
 
 ---
 
@@ -35,16 +35,17 @@
 
 ### パラメータ
 
-| 名前 | 位置 | 型 | 必須 | 説明 |
-|------|------|-----|------|------|
-| language | query | string | No | フィルタリング対象の言語コード (e.g., typescript) |
-| sort_by | query | enum | Yes | ソート基準: `7d_increase`, `30d_increase`, `7d_rate`, `30d_rate`, `total_stars` |
-| page | query | integer | No | ページ番号（デフォルト: 1） |
-| limit | query | integer | No | 取得件数（デフォルト: 100） |
+| 名前     | 位置  | 型      | 必須 | 説明                                                                            |
+| -------- | ----- | ------- | ---- | ------------------------------------------------------------------------------- |
+| language | query | string  | No   | フィルタリング対象の言語コード (e.g., typescript)                               |
+| sort_by  | query | enum    | Yes  | ソート基準: `7d_increase`, `30d_increase`, `7d_rate`, `30d_rate`, `total_stars` |
+| page     | query | integer | No   | ページ番号（デフォルト: 1）                                                     |
+| limit    | query | integer | No   | 取得件数（デフォルト: 100）                                                     |
 
 ### レスポンス
 
 **200 OK**
+
 ```json
 [
   {
@@ -78,21 +79,20 @@
 
 ### パラメータ
 
-| 名前 | 位置 | 型 | 必須 | 説明 |
-|------|------|-----|------|------|
-| repoId | path | UUID | Yes | リポジトリUUID |
+| 名前   | 位置 | 型   | 必須 | 説明           |
+| ------ | ---- | ---- | ---- | -------------- |
+| repoId | path | UUID | Yes  | リポジトリUUID |
 
 ### レスポンス
 
 **200 OK**
+
 ```json
 {
   "full_name": "owner/repo",
   "description": "A great repo",
   "topics": ["typescript", "react"],
-  "history": [
-    {"date": "2026-01-01", "stargazers_count": 11500, "daily_increase": 50}
-  ]
+  "history": [{ "date": "2026-01-01", "stargazers_count": 11500, "daily_increase": 50 }]
 }
 ```
 
@@ -112,18 +112,17 @@
 
 ### パラメータ
 
-| 名前 | 位置 | 型 | 必須 | 説明 |
-|------|------|-----|------|------|
-| query | query | string | Yes | 検索クエリ（リポジトリ名の一部） |
-| limit | query | integer | No | 最大返却件数（デフォルト: 50） |
+| 名前  | 位置  | 型      | 必須 | 説明                             |
+| ----- | ----- | ------- | ---- | -------------------------------- |
+| query | query | string  | Yes  | 検索クエリ（リポジトリ名の一部） |
+| limit | query | integer | No   | 最大返却件数（デフォルト: 50）   |
 
 ### レスポンス
 
 **200 OK**
+
 ```json
-[
-  {"id": "uuid", "full_name": "owner/repo", "description": "..."}
-]
+[{ "id": "uuid", "full_name": "owner/repo", "description": "..." }]
 ```
 
 ---
@@ -140,21 +139,20 @@
 
 ### パラメータ
 
-| 名前 | 位置 | 型 | 必須 | 説明 |
-|------|------|-----|------|------|
-| year | query | integer | Yes | ISO年 |
-| week | query | integer (1-53) | Yes | ISO週番号 |
-| language | query | string | No | 言語フィルタ |
+| 名前     | 位置  | 型             | 必須 | 説明         |
+| -------- | ----- | -------------- | ---- | ------------ |
+| year     | query | integer        | Yes  | ISO年        |
+| week     | query | integer (1-53) | Yes  | ISO週番号    |
+| language | query | string         | No   | 言語フィルタ |
 
 ### レスポンス
 
 **200 OK**
+
 ```json
 {
-  "metadata": {"year": 2026, "week": 5, "language": "all"},
-  "ranking": [
-    {"repo_id": "uuid", "increase": 500}
-  ]
+  "metadata": { "year": 2026, "week": 5, "language": "all" },
+  "ranking": [{ "repo_id": "uuid", "increase": 500 }]
 }
 ```
 
@@ -173,10 +171,11 @@
 ### レスポンス
 
 **200 OK**
+
 ```json
 [
-  {"year": 2026, "week": 5},
-  {"year": 2026, "week": 6}
+  { "year": 2026, "week": 5 },
+  { "year": 2026, "week": 6 }
 ]
 ```
 
@@ -194,9 +193,9 @@ GitHubからの認証コードを受け取り、トークン交換、ユーザ�
 
 ### パラメータ
 
-| 名前 | 位置 | 型 | 必須 | 説明 |
-|------|------|-----|------|------|
-| code | query | string | Yes | GitHub認証コード |
+| 名前 | 位置  | 型     | 必須 | 説明             |
+| ---- | ----- | ------ | ---- | ---------------- |
+| code | query | string | Yes  | GitHub認証コード |
 
 ### レスポンス
 
@@ -217,13 +216,14 @@ GitHubからの認証コードを受け取り、トークン交換、ユーザ�
 
 ### パラメータ
 
-| 名前 | 位置 | 型 | 必須 | 説明 |
-|------|------|-----|------|------|
-| repoId | path | UUID | Yes | リポジトリUUID |
+| 名前   | 位置 | 型   | 必須 | 説明           |
+| ------ | ---- | ---- | ---- | -------------- |
+| repoId | path | UUID | Yes  | リポジトリUUID |
 
 ### レスポンス
 
 **200 OK**
+
 ```json
 {
   "status": "FULL | PREVIEW | NOT_GENERATED",
@@ -276,6 +276,7 @@ GitHubからの認証コードを受け取り、トークン交換、ユーザ�
 ### レスポンス
 
 **200 OK**
+
 ```json
 {
   "checkout_url": "https://checkout.stripe.com/..."

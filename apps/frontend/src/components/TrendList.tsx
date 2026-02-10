@@ -76,7 +76,14 @@ export default function TrendList({ initialTrends }: Props) {
   useEffect(() => {
     const params = getFilterParamsFromUrl();
     // If URL has any filter params, fetch fresh data
-    if (params.language || params.q || params.minStars || params.maxStars || params.sort || params.order) {
+    if (
+      params.language ||
+      params.q ||
+      params.minStars ||
+      params.maxStars ||
+      params.sort ||
+      params.order
+    ) {
       const fetchInitial = async () => {
         setLoading(true);
         try {
@@ -92,30 +99,33 @@ export default function TrendList({ initialTrends }: Props) {
     }
   }, []); // Run once on mount
 
-  const handleRowClick = useCallback(async (repoId: number) => {
-    // If clicking the same repo, collapse it
-    if (expandedRepo?.repoId === repoId) {
-      setExpandedRepo(null);
-      return;
-    }
+  const handleRowClick = useCallback(
+    async (repoId: number) => {
+      // If clicking the same repo, collapse it
+      if (expandedRepo?.repoId === repoId) {
+        setExpandedRepo(null);
+        return;
+      }
 
-    // Start loading
-    setExpandedRepo({ repoId, loading: true, error: null, data: [] });
+      // Start loading
+      setExpandedRepo({ repoId, loading: true, error: null, data: [] });
 
-    try {
-      const response = await getRepoHistory(repoId);
-      const chartData = response.history.map((snapshot: RepoSnapshot) => ({
-        date: snapshot.snapshotDate,
-        stars: snapshot.stars,
-      }));
-      // Sort by date ascending
-      chartData.sort((a, b) => a.date.localeCompare(b.date));
-      setExpandedRepo({ repoId, loading: false, error: null, data: chartData });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      setExpandedRepo({ repoId, loading: false, error: errorMessage, data: [] });
-    }
-  }, [expandedRepo?.repoId]);
+      try {
+        const response = await getRepoHistory(repoId);
+        const chartData = response.history.map((snapshot: RepoSnapshot) => ({
+          date: snapshot.snapshotDate,
+          stars: snapshot.stars,
+        }));
+        // Sort by date ascending
+        chartData.sort((a, b) => a.date.localeCompare(b.date));
+        setExpandedRepo({ repoId, loading: false, error: null, data: chartData });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        setExpandedRepo({ repoId, loading: false, error: errorMessage, data: [] });
+      }
+    },
+    [expandedRepo?.repoId]
+  );
 
   if (loading) {
     return (
@@ -173,10 +183,7 @@ export default function TrendList({ initialTrends }: Props) {
                 className={`trend-row ${expandedRepo?.repoId === trend.repoId ? 'expanded' : ''}`}
               >
                 <td>
-                  <a
-                    href={`/repo/${trend.repoId}`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <a href={`/repo/${trend.repoId}`} onClick={(e) => e.stopPropagation()}>
                     {trend.fullName}
                   </a>
                   <a
@@ -197,9 +204,7 @@ export default function TrendList({ initialTrends }: Props) {
                     <span style={{ color: '#999' }}>N/A</span>
                   )}
                 </td>
-                <td className="star-count">
-                  {trend.currentStars?.toLocaleString() || 0}
-                </td>
+                <td className="star-count">{trend.currentStars?.toLocaleString() || 0}</td>
                 <td className={`weekly-growth ${getGrowthClass(trend.weeklyGrowthRate)}`}>
                   <span className="growth-value">{formatGrowth(trend.weeklyGrowth)}</span>
                   <span className="growth-rate">({formatGrowthRate(trend.weeklyGrowthRate)})</span>

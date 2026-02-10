@@ -36,19 +36,8 @@ async function getLatestSnapshotDate(db: DrizzleD1Database): Promise<string | nu
 /**
  * 全言語のトレンドランキングを取得（検索・フィルタ・ソート対応）
  */
-export async function getAllTrends(
-  db: DrizzleD1Database,
-  options: TrendsQueryOptions = {}
-) {
-  const {
-    language,
-    q,
-    minStars,
-    maxStars,
-    sort = 'stars',
-    order = 'desc',
-    limit = 100,
-  } = options;
+export async function getAllTrends(db: DrizzleD1Database, options: TrendsQueryOptions = {}) {
+  const { language, q, minStars, maxStars, sort = 'stars', order = 'desc', limit = 100 } = options;
 
   // 最新のスナップショット日付を取得（データがない場合は今日の日付を使用）
   const latestDate = await getLatestSnapshotDate(db);
@@ -125,7 +114,7 @@ export async function getAllTrends(
 
   // 取得件数を増やしてからスター数フィルタ（JOINカラムでのフィルタはアプリ側で行う）
   // D1のSQLiteではJOINしたサブクエリのカラムをWHERE句で直接使えないため
-  const fetchLimit = (minStars !== undefined || maxStars !== undefined) ? 1000 : limit;
+  const fetchLimit = minStars !== undefined || maxStars !== undefined ? 1000 : limit;
 
   // ソート適用（デフォルトはstars降順）
   // 注: growth_rateとweekly_growthは計算列のためアプリ側でソート
@@ -246,7 +235,6 @@ export async function getAllLanguages(db: DrizzleD1Database) {
  * リポジトリ詳細情報を取得（スター増加率付き）
  */
 export async function getRepositoryDetail(db: DrizzleD1Database, repoId: number) {
-
   // リポジトリ基本情報を取得
   const [repository] = await db
     .select()

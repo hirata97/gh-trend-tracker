@@ -14,11 +14,7 @@ function generateTraceId(): string {
 /**
  * OpenAPI準拠のエラーレスポンスを生成する
  */
-export function createApiError(
-  message: string,
-  code: ErrorCode,
-  traceId?: string
-): ApiError {
+export function createApiError(message: string, code: ErrorCode, traceId?: string): ApiError {
   return {
     error: message,
     code,

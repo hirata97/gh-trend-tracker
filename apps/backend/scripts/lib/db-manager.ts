@@ -36,7 +36,9 @@ export class DatabaseManager {
 
     const d1 = this.proxy.env.DB as D1Database;
     if (!d1) {
-      throw new Error('D1データベースバインディングが見つかりません。wrangler.jsoncの設定を確認してください。');
+      throw new Error(
+        'D1データベースバインディングが見つかりません。wrangler.jsoncの設定を確認してください。'
+      );
     }
 
     this.db = drizzle(d1);
@@ -137,22 +139,25 @@ export class DatabaseManager {
     const data = this.transformToRepository(repo);
 
     // SQLiteのupsert動作のためINSERT OR REPLACEを使用
-    await db.insert(repositories).values(data).onConflictDoUpdate({
-      target: repositories.repoId,
-      set: {
-        name: data.name,
-        fullName: data.fullName,
-        owner: data.owner,
-        language: data.language,
-        description: data.description,
-        htmlUrl: data.htmlUrl,
-        homepage: data.homepage,
-        topics: data.topics,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
-        pushedAt: data.pushedAt,
-      },
-    });
+    await db
+      .insert(repositories)
+      .values(data)
+      .onConflictDoUpdate({
+        target: repositories.repoId,
+        set: {
+          name: data.name,
+          fullName: data.fullName,
+          owner: data.owner,
+          language: data.language,
+          description: data.description,
+          htmlUrl: data.htmlUrl,
+          homepage: data.homepage,
+          topics: data.topics,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          pushedAt: data.pushedAt,
+        },
+      });
   }
 
   /**

@@ -43,21 +43,13 @@ export default function RepoDetail({ detail, history }: Props) {
     <div className="repo-detail">
       <header className="repo-header">
         <h1>
-          <a
-            href={repository.htmlUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a href={repository.htmlUrl} target="_blank" rel="noopener noreferrer">
             {repository.fullName}
           </a>
         </h1>
-        {repository.description && (
-          <p className="repo-description">{repository.description}</p>
-        )}
+        {repository.description && <p className="repo-description">{repository.description}</p>}
         <div className="repo-meta">
-          {repository.language && (
-            <span className="language-badge">{repository.language}</span>
-          )}
+          {repository.language && <span className="language-badge">{repository.language}</span>}
           {repository.homepage && (
             <a
               href={repository.homepage}

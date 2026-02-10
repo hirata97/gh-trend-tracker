@@ -59,7 +59,7 @@ trendsDaily.get('/', async (c) => {
       '30d_increase': metricsDaily.stars30dIncrease,
       '7d_rate': metricsDaily.stars7dRate,
       '30d_rate': metricsDaily.stars30dRate,
-      'total_stars': repoSnapshots.stars,
+      total_stars: repoSnapshots.stars,
     } as const;
 
     const sortColumn = sortColumnMap[sort_by];
