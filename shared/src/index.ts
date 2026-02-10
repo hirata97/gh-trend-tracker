@@ -27,4 +27,5 @@ export type {
   ErrorResponse,
   ErrorCode,
   ApiError,
+  BatchCollectResponse,
 } from './types/api';

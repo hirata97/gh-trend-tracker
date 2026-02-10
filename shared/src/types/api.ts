@@ -139,7 +139,12 @@ export interface ErrorResponse {
  * - DB_ERROR: データベースエラー
  * - INTERNAL_ERROR: 内部サーバーエラー
  */
-export type ErrorCode = 'VALIDATION_ERROR' | 'NOT_FOUND' | 'DB_ERROR' | 'INTERNAL_ERROR';
+export type ErrorCode =
+  | 'VALIDATION_ERROR'
+  | 'NOT_FOUND'
+  | 'DB_ERROR'
+  | 'INTERNAL_ERROR'
+  | 'UNAUTHORIZED';
 
 export interface ApiError {
   /** エラーメッセージ */
@@ -148,4 +153,19 @@ export interface ApiError {
   code?: ErrorCode;
   /** トレース用ID（デバッグ用、オプション） */
   traceId?: string;
+}
+
+/** バッチ収集レスポンス型 */
+export interface BatchCollectResponse {
+  message: string;
+  summary: {
+    total: number;
+    githubFetchSuccess: number;
+    githubNotFound: number;
+    githubErrors: number;
+    dbUpdateSuccess: number;
+    dbUpdateErrors: number;
+  };
+  snapshotDate: string;
+  durationMs: number;
 }

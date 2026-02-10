@@ -5,6 +5,7 @@ import trendsDaily from './routes/trends-daily';
 import trends from './routes/trends';
 import repositories from './routes/repositories';
 import languages from './routes/languages';
+import collectDaily from './routes/batch/collect-daily';
 import { dbMiddleware } from './middleware/database';
 import type { AppEnv } from './types/app';
 
@@ -29,5 +30,31 @@ app.route('/api/trends/daily', trendsDaily);
 app.route('/api/trends', trends);
 app.route('/api/repos', repositories);
 app.route('/api/languages', languages);
+app.route('/api/internal/batch/collect-daily', collectDaily);
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(
+    _event: ScheduledEvent,
+    env: AppEnv['Bindings'],
+    ctx: ExecutionContext
+  ) {
+    // Cronトリガーから内部APIを直接呼び出す
+    ctx.waitUntil(
+      (async () => {
+        const url = 'http://localhost/api/internal/batch/collect-daily';
+        const response = await app.fetch(
+          new Request(url, {
+            method: 'POST',
+            headers: {
+              'X-Internal-Token': env.INTERNAL_API_TOKEN,
+            },
+          }),
+          env
+        );
+        const result = await response.json();
+        console.log('スケジュール実行結果:', JSON.stringify(result));
+      })()
+    );
+  },
+};
