@@ -1,8 +1,10 @@
 /**
- * RepositoryListItem Component (COM-001)
- * Displays a single repository as a card/row in list views.
- * Used in: scr-001, scr-003, scr-004, scr-010
+ * RepositoryListItem コンポーネント (COM-001)
+ * リポジトリ1件をカード/行として表示する。
+ * 使用箇所: scr-001, scr-003, scr-004, scr-010
  */
+
+import MetricsBadge from './MetricsBadge';
 
 interface RepositoryListItemProps {
   repo: {
@@ -26,11 +28,6 @@ function formatNumber(num: number): string {
     return `${(num / 1000).toFixed(1)}k`;
   }
   return num.toLocaleString();
-}
-
-function formatGrowth(value: number): string {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toLocaleString()}`;
 }
 
 export default function RepositoryListItem({
@@ -69,20 +66,10 @@ export default function RepositoryListItem({
         </span>
 
         {showMetrics && metrics && (
-          <>
-            <span
-              className={`repo-list-item__metric ${metrics.stars_7d_increase > 0 ? 'repo-list-item__metric--positive' : ''}`}
-              title="7-day star increase"
-            >
-              7d: {formatGrowth(metrics.stars_7d_increase)}
-            </span>
-            <span
-              className={`repo-list-item__metric ${metrics.stars_30d_increase > 0 ? 'repo-list-item__metric--positive' : ''}`}
-              title="30-day star increase"
-            >
-              30d: {formatGrowth(metrics.stars_30d_increase)}
-            </span>
-          </>
+          <div className="metrics-badge-group">
+            <MetricsBadge value={metrics.stars_7d_increase} period="7d" />
+            <MetricsBadge value={metrics.stars_30d_increase} period="30d" />
+          </div>
         )}
       </div>
     </div>
