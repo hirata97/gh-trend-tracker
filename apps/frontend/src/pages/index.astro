@@ -2,38 +2,30 @@
 import Layout from '../layouts/Layout.astro';
 import TrendList from '../components/TrendList';
 import FilterBar from '../components/FilterBar';
-import { getTrends, getLanguages } from '../lib/api';
-import type { TrendItem, TrendSortField, SortOrder } from '@gh-trend-tracker/shared';
+import { getTrendsDaily, getLanguages } from '../lib/api';
+import type { TrendsDailyItem, SortBy } from '@gh-trend-tracker/shared';
 
 // Get filter parameters from query string
 const url = new URL(Astro.request.url);
 const selectedLanguage = url.searchParams.get('language') || undefined;
-const searchQuery = url.searchParams.get('q') || undefined;
-const minStarsParam = url.searchParams.get('minStars');
-const maxStarsParam = url.searchParams.get('maxStars');
-const sortParam = url.searchParams.get('sort') as TrendSortField | null;
-const orderParam = url.searchParams.get('order') as SortOrder | null;
+const sortByParam = url.searchParams.get('sort_by') as SortBy | null;
 
-const minStars = minStarsParam ? parseInt(minStarsParam, 10) : undefined;
-const maxStars = maxStarsParam ? parseInt(maxStarsParam, 10) : undefined;
-const sort = sortParam && ['stars', 'growth_rate', 'weekly_growth'].includes(sortParam) ? sortParam : undefined;
-const order = orderParam && ['asc', 'desc'].includes(orderParam) ? orderParam : undefined;
+const validSortValues: SortBy[] = ['7d_increase', '30d_increase', '7d_rate', '30d_rate', 'total_stars'];
+const sortBy: SortBy = sortByParam && validSortValues.includes(sortByParam) ? sortByParam : '7d_increase';
 
 // Fetch data from backend API
-let trends: TrendItem[] = [];
+let trends: TrendsDailyItem[] = [];
+let snapshotDate: string | undefined = undefined;
 let languages: (string | null)[] = [];
 let error: string | null = null;
 
 try {
-  const trendsData = await getTrends({
+  const trendsData = await getTrendsDaily({
     language: selectedLanguage,
-    q: searchQuery,
-    minStars,
-    maxStars,
-    sort,
-    order,
+    sort_by: sortBy,
   });
-  trends = trendsData.trends || [];
+  trends = trendsData.data || [];
+  snapshotDate = trendsData.metadata?.snapshot_date;
 
   const languagesData = await getLanguages();
   languages = languagesData.languages || [];
@@ -42,24 +34,21 @@ try {
   console.error('Failed to fetch data:', e);
 }
 
-// Extract snapshot date from the latest trend data
-const snapshotDate = trends.length > 0 ? (trends[0].snapshotDate ?? undefined) : undefined;
-
 // Build result description
 let resultDescription = '';
-if (searchQuery) {
-  resultDescription += `Search: "${searchQuery}"`;
-}
 if (selectedLanguage) {
-  resultDescription += resultDescription ? ` in ${selectedLanguage}` : `Language: ${selectedLanguage}`;
+  resultDescription += `Language: ${selectedLanguage}`;
 }
-if (minStars !== undefined || maxStars !== undefined) {
-  const starsRange = minStars !== undefined && maxStars !== undefined
-    ? `${minStars.toLocaleString()} - ${maxStars.toLocaleString()}`
-    : minStars !== undefined
-      ? `≥ ${minStars.toLocaleString()}`
-      : `≤ ${maxStars!.toLocaleString()}`;
-  resultDescription += resultDescription ? ` (${starsRange} stars)` : `Stars: ${starsRange}`;
+const SORT_LABELS: Record<SortBy, string> = {
+  '7d_increase': '7日間増加数',
+  '30d_increase': '30日間増加数',
+  '7d_rate': '7日間増加率',
+  '30d_rate': '30日間増加率',
+  'total_stars': '総スター数',
+};
+if (sortBy !== '7d_increase') {
+  const sortLabel = SORT_LABELS[sortBy];
+  resultDescription += resultDescription ? ` - Sort: ${sortLabel}` : `Sort: ${sortLabel}`;
 }
 ---
 
