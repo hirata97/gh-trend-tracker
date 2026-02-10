@@ -1,7 +1,7 @@
 /**
- * ChartTooltip Component
- * Custom Recharts tooltip for star history chart
- * Displays date, star count, and daily increase
+ * ChartTooltip コンポーネント
+ * スター推移グラフ用のカスタムRechartsツールチップ
+ * 日付、スター数、日次増加数を表示
  */
 
 interface TooltipPayload {

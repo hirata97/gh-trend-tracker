@@ -1,6 +1,6 @@
 /**
- * StarChart Component
- * Displays a line chart of star count history over time
+ * StarChart コンポーネント
+ * スター数の推移を折れ線グラフで表示
  */
 
 import React from 'react';
@@ -62,8 +62,8 @@ export default function StarChart({ data, loading, error }: Props) {
     dailyIncrease: index > 0 ? item.stars - data[index - 1].stars : null,
   }));
 
-  // Use React.createElement with type assertions to work around
-  // recharts/React 18/19 type incompatibility issues
+  // recharts と React 18/19 の型互換性問題を回避するため
+  // React.createElement + 型アサーションを使用
   return (
     <div className="star-chart-container">
       {React.createElement(

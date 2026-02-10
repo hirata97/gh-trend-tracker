@@ -228,7 +228,7 @@ input:focus {
   color: #c53030;
 }
 
-/* Star Chart Tooltip */
+/* スター推移グラフ ツールチップ */
 .chart-tooltip {
   background: #fff;
   border: 1px solid #e1e4e8;
