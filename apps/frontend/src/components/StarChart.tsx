@@ -1,6 +1,6 @@
 /**
- * StarChart Component
- * Displays a line chart of star count history over time
+ * StarChart コンポーネント
+ * スター数の推移を折れ線グラフで表示
  */
 
 import React from 'react';
@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
+import ChartTooltip from './ChartTooltip';
 
 interface ChartData {
   date: string;
@@ -55,13 +56,14 @@ export default function StarChart({ data, loading, error }: Props) {
     return <div className="star-chart-container star-chart-empty">No history data available</div>;
   }
 
-  const formattedData = data.map((item) => ({
+  const formattedData = data.map((item, index) => ({
     ...item,
     displayDate: formatDate(item.date),
+    dailyIncrease: index > 0 ? item.stars - data[index - 1].stars : null,
   }));
 
-  // Use React.createElement with type assertions to work around
-  // recharts/React 18/19 type incompatibility issues
+  // recharts と React 18/19 の型互換性問題を回避するため
+  // React.createElement + 型アサーションを使用
   return (
     <div className="star-chart-container">
       {React.createElement(
@@ -87,8 +89,7 @@ export default function StarChart({ data, loading, error }: Props) {
             width: 50,
           }),
           React.createElement(Tooltip as unknown as AnyComponent, {
-            formatter: (value: number) => [value.toLocaleString(), 'Stars'] as const,
-            labelFormatter: (label: string) => `Date: ${label}`,
+            content: React.createElement(ChartTooltip),
           }),
           React.createElement(Line as unknown as AnyComponent, {
             type: 'monotone',

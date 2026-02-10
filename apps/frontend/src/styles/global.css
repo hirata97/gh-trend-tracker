@@ -228,6 +228,36 @@ input:focus {
   color: #c53030;
 }
 
+/* スター推移グラフ ツールチップ */
+.chart-tooltip {
+  background: #fff;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.chart-tooltip p {
+  margin: 0;
+}
+
+.chart-tooltip__date {
+  color: #586069;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.chart-tooltip__stars {
+  color: #24292e;
+  font-weight: 600;
+}
+
+.chart-tooltip__increase {
+  color: #586069;
+}
+
 /* Repository Detail Page */
 .repo-detail {
   max-width: 900px;

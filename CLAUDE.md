@@ -258,6 +258,7 @@ Cloudflare WorkerはD1データベースバインディングを使用：
 - **未使用変数**: アンダースコアプレフィックス（`_var`）で回避せず、根本的に解決する
   - 例: `for (const [_key, value] of map.entries())` → `for (const value of map.values())`
   - コールバックで位置が固定される場合のみ例外的に許可（例: `array.map((_item, index) => index)`）
+- **コメント言語**: コード内のコメントは日本語で記述する
 
 ## ドキュメント
 
