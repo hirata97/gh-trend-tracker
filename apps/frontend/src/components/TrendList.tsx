@@ -4,13 +4,16 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { navigate } from 'astro:transitions/client';
 import type { TrendsDailyItem, RepoSnapshot, SortBy } from '@gh-trend-tracker/shared';
 import StarChart from './StarChart';
 import MetricsBadge from './MetricsBadge';
+import Pagination from './Pagination';
 import { getRepoHistory, getTrendsDaily } from '../lib/api';
 
 interface Props {
   initialTrends: TrendsDailyItem[];
+  initialPagination: { page: number; totalPages: number };
 }
 
 interface ExpandedState {
@@ -23,23 +26,28 @@ interface ExpandedState {
 const VALID_SORT_VALUES: SortBy[] = ['7d_increase', '30d_increase', '7d_rate', '30d_rate', 'total_stars'];
 
 // URLからフィルタパラメータを取得
-function getFilterParamsFromUrl(): { language?: string; sort_by: SortBy } {
-  if (typeof window === 'undefined') return { sort_by: '7d_increase' };
+function getFilterParamsFromUrl(): { language?: string; sort_by: SortBy; page: number } {
+  if (typeof window === 'undefined') return { sort_by: '7d_increase', page: 1 };
   const params = new URLSearchParams(window.location.search);
   const sortByParam = params.get('sort_by');
+  const pageParam = params.get('page');
+  const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
 
   return {
     language: params.get('language') || undefined,
     sort_by: (sortByParam && VALID_SORT_VALUES.includes(sortByParam as SortBy)
       ? sortByParam
       : '7d_increase') as SortBy,
+    page,
   };
 }
 
-export default function TrendList({ initialTrends }: Props) {
+export default function TrendList({ initialTrends, initialPagination }: Props) {
   const [trends, setTrends] = useState(initialTrends);
   const [loading, setLoading] = useState(false);
   const [expandedRepo, setExpandedRepo] = useState<ExpandedState | null>(null);
+  const [currentPage, setCurrentPage] = useState(initialPagination.page);
+  const [totalPages, setTotalPages] = useState(initialPagination.totalPages);
 
   // URL変更時にデータを再取得
   useEffect(() => {
@@ -49,6 +57,8 @@ export default function TrendList({ initialTrends }: Props) {
         const params = getFilterParamsFromUrl();
         const response = await getTrendsDaily(params);
         setTrends(response.data || []);
+        setCurrentPage(response.pagination.page);
+        setTotalPages(response.pagination.totalPages);
       } catch {
         // エラー時は現在のトレンドを維持
       } finally {
@@ -74,12 +84,14 @@ export default function TrendList({ initialTrends }: Props) {
   useEffect(() => {
     const params = getFilterParamsFromUrl();
     // フィルタパラメータがある場合、最新データを取得
-    if (params.language || params.sort_by !== '7d_increase') {
+    if (params.language || params.sort_by !== '7d_increase' || params.page > 1) {
       const fetchInitial = async () => {
         setLoading(true);
         try {
           const response = await getTrendsDaily(params);
           setTrends(response.data || []);
+          setCurrentPage(response.pagination.page);
+          setTotalPages(response.pagination.totalPages);
         } catch {
           // 失敗時は初期トレンドを維持
         } finally {
@@ -89,6 +101,23 @@ export default function TrendList({ initialTrends }: Props) {
       fetchInitial();
     }
   }, []); // マウント時に1回だけ実行
+
+  // ページ変更ハンドラ
+  const handlePageChange = useCallback((page: number) => {
+    const params = new URLSearchParams(window.location.search);
+    if (page > 1) {
+      params.set('page', String(page));
+    } else {
+      params.delete('page');
+    }
+    const queryString = params.toString();
+    const url = queryString ? `/?${queryString}` : '/';
+    navigate(url);
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('filter-change'));
+    }, 100);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const handleRowClick = useCallback(
     async (repoId: number) => {
@@ -210,6 +239,11 @@ export default function TrendList({ initialTrends }: Props) {
           })}
         </tbody>
       </table>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+      />
     </div>
   );
 }

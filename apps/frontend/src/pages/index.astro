@@ -3,12 +3,14 @@ import Layout from '../layouts/Layout.astro';
 import TrendList from '../components/TrendList';
 import FilterBar from '../components/FilterBar';
 import { getTrendsDaily, getLanguages } from '../lib/api';
-import type { TrendsDailyItem, SortBy } from '@gh-trend-tracker/shared';
+import type { TrendsDailyItem, SortBy, TrendsDailyPagination } from '@gh-trend-tracker/shared';
 
 // Get filter parameters from query string
 const url = new URL(Astro.request.url);
 const selectedLanguage = url.searchParams.get('language') || undefined;
 const sortByParam = url.searchParams.get('sort_by') as SortBy | null;
+const pageParam = url.searchParams.get('page');
+const currentPage = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
 
 const validSortValues: SortBy[] = ['7d_increase', '30d_increase', '7d_rate', '30d_rate', 'total_stars'];
 const sortBy: SortBy = sortByParam && validSortValues.includes(sortByParam) ? sortByParam : '7d_increase';
@@ -17,15 +19,18 @@ const sortBy: SortBy = sortByParam && validSortValues.includes(sortByParam) ? so
 let trends: TrendsDailyItem[] = [];
 let snapshotDate: string | undefined = undefined;
 let languages: (string | null)[] = [];
+let pagination: TrendsDailyPagination = { page: 1, limit: 20, total: 0, totalPages: 1 };
 let error: string | null = null;
 
 try {
   const trendsData = await getTrendsDaily({
     language: selectedLanguage,
     sort_by: sortBy,
+    page: currentPage,
   });
   trends = trendsData.data || [];
   snapshotDate = trendsData.metadata?.snapshot_date;
+  pagination = trendsData.pagination;
 
   const languagesData = await getLanguages();
   languages = languagesData.languages || [];
@@ -74,10 +79,15 @@ if (sortBy !== '7d_increase') {
 
         <h2>
           {resultDescription ? `${resultDescription} - ` : ''}
-          {trends.length} {trends.length === 1 ? 'repository' : 'repositories'} found
+          {pagination.total} {pagination.total === 1 ? 'repository' : 'repositories'} found
+          {pagination.totalPages > 1 && ` (Page ${pagination.page}/${pagination.totalPages})`}
         </h2>
 
-        <TrendList initialTrends={trends} client:load />
+        <TrendList
+          initialTrends={trends}
+          initialPagination={{ page: pagination.page, totalPages: pagination.totalPages }}
+          client:load
+        />
       </>
     )}
   </div>
