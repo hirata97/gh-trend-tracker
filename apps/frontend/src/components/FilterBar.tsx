@@ -4,17 +4,14 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { navigate } from 'astro:transitions/client';
-import type { TrendSortField, SortOrder } from '@gh-trend-tracker/shared';
+import type { SortBy } from '@gh-trend-tracker/shared';
+import SortSelector from './SortSelector';
 
 interface Props {
   languages: (string | null)[];
 }
 
-const SORT_OPTIONS: { value: TrendSortField; label: string }[] = [
-  { value: 'stars', label: 'Stars' },
-  { value: 'growth_rate', label: 'Growth Rate (%)' },
-  { value: 'weekly_growth', label: 'Weekly Growth' },
-];
+const VALID_SORT_VALUES: SortBy[] = ['7d_increase', '30d_increase', '7d_rate', '30d_rate', 'total_stars'];
 
 // Parse URL parameters
 function getParamsFromUrl(): {
@@ -22,8 +19,7 @@ function getParamsFromUrl(): {
   q: string;
   minStars: number | undefined;
   maxStars: number | undefined;
-  sort: TrendSortField;
-  order: SortOrder;
+  sortBy: SortBy;
 } {
   if (typeof window === 'undefined') {
     return {
@@ -31,13 +27,11 @@ function getParamsFromUrl(): {
       q: '',
       minStars: undefined,
       maxStars: undefined,
-      sort: 'stars',
-      order: 'desc',
+      sortBy: '7d_increase',
     };
   }
   const params = new URLSearchParams(window.location.search);
-  const sortParam = params.get('sort');
-  const orderParam = params.get('order');
+  const sortByParam = params.get('sort_by');
   const minStarsParam = params.get('minStars');
   const maxStarsParam = params.get('maxStars');
 
@@ -46,10 +40,9 @@ function getParamsFromUrl(): {
     q: params.get('q') || '',
     minStars: minStarsParam ? parseInt(minStarsParam, 10) : undefined,
     maxStars: maxStarsParam ? parseInt(maxStarsParam, 10) : undefined,
-    sort: (sortParam && ['stars', 'growth_rate', 'weekly_growth'].includes(sortParam)
-      ? sortParam
-      : 'stars') as TrendSortField,
-    order: (orderParam && ['asc', 'desc'].includes(orderParam) ? orderParam : 'desc') as SortOrder,
+    sortBy: (sortByParam && VALID_SORT_VALUES.includes(sortByParam as SortBy)
+      ? sortByParam
+      : '7d_increase') as SortBy,
   };
 }
 
@@ -58,8 +51,7 @@ export default function FilterBar({ languages }: Props) {
   const [searchValue, setSearchValue] = useState(initialParams.q);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [language, setLanguage] = useState(initialParams.language);
-  const [sort, setSort] = useState(initialParams.sort);
-  const [order, setOrder] = useState(initialParams.order);
+  const [sortBy, setSortBy] = useState(initialParams.sortBy);
   const [minStars, setMinStars] = useState(initialParams.minStars);
   const [maxStars, setMaxStars] = useState(initialParams.maxStars);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,8 +62,7 @@ export default function FilterBar({ languages }: Props) {
       const params = getParamsFromUrl();
       setSearchValue(params.q);
       setLanguage(params.language);
-      setSort(params.sort);
-      setOrder(params.order);
+      setSortBy(params.sortBy);
       setMinStars(params.minStars);
       setMaxStars(params.maxStars);
     };
@@ -98,8 +89,7 @@ export default function FilterBar({ languages }: Props) {
         q: string;
         minStars: number | null;
         maxStars: number | null;
-        sort: TrendSortField;
-        order: SortOrder;
+        sortBy: SortBy;
       }> = {}
     ) => {
       const params = new URLSearchParams();
@@ -108,20 +98,18 @@ export default function FilterBar({ languages }: Props) {
       const q = overrides.q !== undefined ? overrides.q : searchValue;
       const min = overrides.minStars !== undefined ? overrides.minStars : minStars;
       const max = overrides.maxStars !== undefined ? overrides.maxStars : maxStars;
-      const sortVal = overrides.sort !== undefined ? overrides.sort : sort;
-      const orderVal = overrides.order !== undefined ? overrides.order : order;
+      const sortByVal = overrides.sortBy !== undefined ? overrides.sortBy : sortBy;
 
       if (lang) params.set('language', lang);
       if (q) params.set('q', q);
       if (min !== undefined && min !== null) params.set('minStars', String(min));
       if (max !== undefined && max !== null) params.set('maxStars', String(max));
-      if (sortVal && sortVal !== 'stars') params.set('sort', sortVal);
-      if (orderVal && orderVal !== 'desc') params.set('order', orderVal);
+      if (sortByVal && sortByVal !== '7d_increase') params.set('sort_by', sortByVal);
 
       const queryString = params.toString();
       return queryString ? `/?${queryString}` : '/';
     },
-    [language, searchValue, minStars, maxStars, sort, order]
+    [language, searchValue, minStars, maxStars, sortBy]
   );
 
   // Handle search input with debounce
@@ -153,17 +141,10 @@ export default function FilterBar({ languages }: Props) {
     setTimeout(dispatchFilterChange, 100);
   };
 
-  // Handle sort change
-  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const sort = e.target.value as TrendSortField;
-    navigate(buildUrl({ sort }));
-    setTimeout(dispatchFilterChange, 100);
-  };
-
-  // Handle order toggle
-  const handleOrderToggle = () => {
-    const newOrder = order === 'desc' ? 'asc' : 'desc';
-    navigate(buildUrl({ order: newOrder }));
+  // Handle sort_by change
+  const handleSortByChange = (newSortBy: SortBy) => {
+    setSortBy(newSortBy);
+    navigate(buildUrl({ sortBy: newSortBy }));
     setTimeout(dispatchFilterChange, 100);
   };
 
@@ -185,8 +166,7 @@ export default function FilterBar({ languages }: Props) {
   const handleClearFilters = () => {
     setSearchValue('');
     setLanguage(undefined);
-    setSort('stars');
-    setOrder('desc');
+    setSortBy('7d_increase');
     setMinStars(undefined);
     setMaxStars(undefined);
     navigate('/');
@@ -208,8 +188,7 @@ export default function FilterBar({ languages }: Props) {
     searchValue ||
     minStars !== undefined ||
     maxStars !== undefined ||
-    sort !== 'stars' ||
-    order !== 'desc';
+    sortBy !== '7d_increase';
 
   return (
     <div className="filter-bar">
@@ -238,24 +217,7 @@ export default function FilterBar({ languages }: Props) {
         </div>
 
         {/* Sort selector */}
-        <div className="filter-item">
-          <select value={sort} onChange={handleSortChange} className="filter-select">
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Sort order toggle */}
-        <button
-          className="order-toggle"
-          onClick={handleOrderToggle}
-          title={order === 'desc' ? 'Descending' : 'Ascending'}
-        >
-          {order === 'desc' ? '↓' : '↑'}
-        </button>
+        <SortSelector currentSort={sortBy} onSortChange={handleSortByChange} />
 
         {/* Advanced filters toggle */}
         <button

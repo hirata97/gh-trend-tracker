@@ -4,12 +4,12 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import type { TrendItem, RepoSnapshot } from '@gh-trend-tracker/shared';
+import type { TrendsDailyItem, RepoSnapshot, SortBy } from '@gh-trend-tracker/shared';
 import StarChart from './StarChart';
-import { getRepoHistory, getTrends } from '../lib/api';
+import { getRepoHistory, getTrendsDaily } from '../lib/api';
 
 interface Props {
-  initialTrends: TrendItem[];
+  initialTrends: TrendsDailyItem[];
 }
 
 interface ExpandedState {
@@ -19,22 +19,19 @@ interface ExpandedState {
   data: { date: string; stars: number }[];
 }
 
+const VALID_SORT_VALUES: SortBy[] = ['7d_increase', '30d_increase', '7d_rate', '30d_rate', 'total_stars'];
+
 // Parse filter params from URL
-function getFilterParamsFromUrl() {
-  if (typeof window === 'undefined') return {};
+function getFilterParamsFromUrl(): { language?: string; sort_by: SortBy } {
+  if (typeof window === 'undefined') return { sort_by: '7d_increase' };
   const params = new URLSearchParams(window.location.search);
-  const sortParam = params.get('sort');
-  const orderParam = params.get('order');
-  const minStarsParam = params.get('minStars');
-  const maxStarsParam = params.get('maxStars');
+  const sortByParam = params.get('sort_by');
 
   return {
     language: params.get('language') || undefined,
-    q: params.get('q') || undefined,
-    minStars: minStarsParam ? parseInt(minStarsParam, 10) : undefined,
-    maxStars: maxStarsParam ? parseInt(maxStarsParam, 10) : undefined,
-    sort: sortParam as 'stars' | 'growth_rate' | 'weekly_growth' | undefined,
-    order: orderParam as 'asc' | 'desc' | undefined,
+    sort_by: (sortByParam && VALID_SORT_VALUES.includes(sortByParam as SortBy)
+      ? sortByParam
+      : '7d_increase') as SortBy,
   };
 }
 
@@ -49,8 +46,8 @@ export default function TrendList({ initialTrends }: Props) {
       setLoading(true);
       try {
         const params = getFilterParamsFromUrl();
-        const response = await getTrends(params);
-        setTrends(response.trends || []);
+        const response = await getTrendsDaily(params);
+        setTrends(response.data || []);
       } catch {
         // Error handling - keep current trends on failure
       } finally {
@@ -76,19 +73,12 @@ export default function TrendList({ initialTrends }: Props) {
   useEffect(() => {
     const params = getFilterParamsFromUrl();
     // If URL has any filter params, fetch fresh data
-    if (
-      params.language ||
-      params.q ||
-      params.minStars ||
-      params.maxStars ||
-      params.sort ||
-      params.order
-    ) {
+    if (params.language || params.sort_by !== '7d_increase') {
       const fetchInitial = async () => {
         setLoading(true);
         try {
-          const response = await getTrends(params);
-          setTrends(response.trends || []);
+          const response = await getTrendsDaily(params);
+          setTrends(response.data || []);
         } catch {
           // Keep initial trends on failure
         } finally {
@@ -144,20 +134,17 @@ export default function TrendList({ initialTrends }: Props) {
     );
   }
 
-  const formatGrowthRate = (rate: number | null): string => {
-    if (rate === null) return '-';
+  const formatRate = (rate: number): string => {
     const sign = rate >= 0 ? '+' : '';
     return `${sign}${rate.toFixed(2)}%`;
   };
 
-  const formatGrowth = (growth: number | null): string => {
-    if (growth === null) return '-';
-    const sign = growth >= 0 ? '+' : '';
-    return `${sign}${growth.toLocaleString()}`;
+  const formatIncrease = (count: number): string => {
+    const sign = count >= 0 ? '+' : '';
+    return `${sign}${count.toLocaleString()}`;
   };
 
-  const getGrowthClass = (rate: number | null): string => {
-    if (rate === null) return 'growth-neutral';
+  const getGrowthClass = (rate: number): string => {
     if (rate >= 5) return 'growth-high';
     if (rate >= 1) return 'growth-medium';
     return 'growth-low';
@@ -171,64 +158,62 @@ export default function TrendList({ initialTrends }: Props) {
             <th>Repository</th>
             <th>Language</th>
             <th>Stars</th>
-            <th>Weekly Growth</th>
+            <th>7d Growth</th>
+            <th>30d Growth</th>
             <th>Description</th>
           </tr>
         </thead>
         <tbody>
-          {trends.map((trend) => (
-            <React.Fragment key={trend.repoId}>
-              <tr
-                onClick={() => handleRowClick(trend.repoId)}
-                className={`trend-row ${expandedRepo?.repoId === trend.repoId ? 'expanded' : ''}`}
-              >
-                <td>
-                  <a href={`/repo/${trend.repoId}`} onClick={(e) => e.stopPropagation()}>
-                    {trend.fullName}
-                  </a>
-                  <a
-                    href={trend.htmlUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="external-link"
-                    title="Open on GitHub"
-                  >
-                    ↗
-                  </a>
-                </td>
-                <td>
-                  {trend.language ? (
-                    <span className="language-badge">{trend.language}</span>
-                  ) : (
-                    <span style={{ color: '#999' }}>N/A</span>
-                  )}
-                </td>
-                <td className="star-count">{trend.currentStars?.toLocaleString() || 0}</td>
-                <td className={`weekly-growth ${getGrowthClass(trend.weeklyGrowthRate)}`}>
-                  <span className="growth-value">{formatGrowth(trend.weeklyGrowth)}</span>
-                  <span className="growth-rate">({formatGrowthRate(trend.weeklyGrowthRate)})</span>
-                </td>
-                <td style={{ maxWidth: '350px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {trend.description || <em style={{ color: '#999' }}>No description</em>}
-                </td>
-              </tr>
-              {expandedRepo?.repoId === trend.repoId && (
-                <tr className="chart-row">
-                  <td colSpan={5}>
-                    <div className="chart-container">
-                      <h4>Star History (Last 90 Days)</h4>
-                      <StarChart
-                        data={expandedRepo.data}
-                        loading={expandedRepo.loading}
-                        error={expandedRepo.error}
-                      />
-                    </div>
+          {trends.map((trend) => {
+            const repoId = Number(trend.id);
+            return (
+              <React.Fragment key={trend.id}>
+                <tr
+                  onClick={() => handleRowClick(repoId)}
+                  className={`trend-row ${expandedRepo?.repoId === repoId ? 'expanded' : ''}`}
+                >
+                  <td>
+                    <a href={`/repo/${trend.id}`} onClick={(e) => e.stopPropagation()}>
+                      {trend.full_name}
+                    </a>
+                  </td>
+                  <td>
+                    {trend.language ? (
+                      <span className="language-badge">{trend.language}</span>
+                    ) : (
+                      <span style={{ color: '#999' }}>N/A</span>
+                    )}
+                  </td>
+                  <td className="star-count">{trend.stargazers_count.toLocaleString()}</td>
+                  <td className={`weekly-growth ${getGrowthClass(trend.stars_7d_rate)}`}>
+                    <span className="growth-value">{formatIncrease(trend.stars_7d_increase)}</span>
+                    <span className="growth-rate">({formatRate(trend.stars_7d_rate)})</span>
+                  </td>
+                  <td className={`weekly-growth ${getGrowthClass(trend.stars_30d_rate)}`}>
+                    <span className="growth-value">{formatIncrease(trend.stars_30d_increase)}</span>
+                    <span className="growth-rate">({formatRate(trend.stars_30d_rate)})</span>
+                  </td>
+                  <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {trend.description || <em style={{ color: '#999' }}>No description</em>}
                   </td>
                 </tr>
-              )}
-            </React.Fragment>
-          ))}
+                {expandedRepo?.repoId === repoId && (
+                  <tr className="chart-row">
+                    <td colSpan={6}>
+                      <div className="chart-container">
+                        <h4>Star History (Last 90 Days)</h4>
+                        <StarChart
+                          data={expandedRepo.data}
+                          loading={expandedRepo.loading}
+                          error={expandedRepo.error}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>

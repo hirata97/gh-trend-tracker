@@ -6,6 +6,8 @@
 import type {
   TrendsResponse,
   TrendsQueryParams,
+  TrendsDailyResponse,
+  SortBy,
   LanguagesResponse,
   HistoryResponse,
   RepoDetailResponse,
@@ -44,6 +46,37 @@ export async function getTrends(params?: TrendsQueryParams): Promise<TrendsRespo
 
   if (!response.ok) {
     throw new Error(`Failed to fetch trends: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch daily trends with sort_by support
+ * @param params - Query parameters for sorting and filtering
+ * @returns TrendsDailyResponse with repository data and pagination
+ */
+export async function getTrendsDaily(params?: {
+  language?: string;
+  sort_by?: SortBy;
+  page?: number;
+  limit?: number;
+}): Promise<TrendsDailyResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.language) searchParams.set('language', params.language);
+  if (params?.sort_by) searchParams.set('sort_by', params.sort_by);
+  if (params?.page !== undefined) searchParams.set('page', String(params.page));
+  if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+
+  const queryString = searchParams.toString();
+  const url = queryString
+    ? `${API_BASE}/api/trends/daily?${queryString}`
+    : `${API_BASE}/api/trends/daily`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch daily trends: ${response.status} ${response.statusText}`);
   }
 
   return response.json();
