@@ -169,3 +169,20 @@ export interface BatchCollectResponse {
   snapshotDate: string;
   durationMs: number;
 }
+
+/** メトリクス計算バッチレスポンス型 */
+export interface BatchMetricsResponse {
+  message: string;
+  summary: {
+    /** 処理対象リポジトリ数 */
+    total: number;
+    /** メトリクス計算成功数 */
+    success: number;
+    /** スナップショットなしでスキップされた数 */
+    skipped: number;
+    /** エラー数 */
+    errors: number;
+  };
+  calculatedDate: string;
+  durationMs: number;
+}

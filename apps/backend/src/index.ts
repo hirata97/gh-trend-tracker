@@ -7,8 +7,10 @@ import trends from './routes/trends';
 import repositories from './routes/repositories';
 import languages from './routes/languages';
 import collectDaily from './routes/batch/collect-daily';
+import calculateMetrics from './routes/batch/calculate-metrics';
 import { dbMiddleware } from './middleware/database';
 import { runDailyCollection } from './services/batch-collector';
+import { runMetricsCalculation } from './services/metrics-calculator';
 import type { AppEnv } from './types/app';
 
 const app = new Hono<AppEnv>();
@@ -33,30 +35,38 @@ app.route('/api/trends', trends);
 app.route('/api/repos', repositories);
 app.route('/api/languages', languages);
 app.route('/api/internal/batch/collect-daily', collectDaily);
+app.route('/api/internal/batch/calculate-metrics', calculateMetrics);
 
 export default {
   fetch: app.fetch,
-  async scheduled(
-    _event: ScheduledEvent,
-    env: AppEnv['Bindings'],
-    ctx: ExecutionContext
-  ) {
-    // Cronトリガー: 全リポジトリを処理（limit なし、タイムアウト15分）
+  async scheduled(event: ScheduledEvent, env: AppEnv['Bindings'], ctx: ExecutionContext) {
     ctx.waitUntil(
       (async () => {
         const db = drizzle(env.DB);
-        const githubToken = env.GITHUB_TOKEN;
 
-        if (!githubToken) {
-          console.error('GITHUB_TOKEN環境変数が設定されていません');
-          return;
-        }
+        if (event.cron === '30 0 * * *') {
+          // メトリクス計算（UTC 0:30）
+          try {
+            const result = await runMetricsCalculation({ db });
+            console.log('メトリクス計算結果:', JSON.stringify(result));
+          } catch (error) {
+            console.error('メトリクス計算エラー:', error);
+          }
+        } else {
+          // 日次データ収集（UTC 0:00）
+          const githubToken = env.GITHUB_TOKEN;
 
-        try {
-          const result = await runDailyCollection({ db, githubToken });
-          console.log('スケジュール実行結果:', JSON.stringify(result));
-        } catch (error) {
-          console.error('スケジュール実行エラー:', error);
+          if (!githubToken) {
+            console.error('GITHUB_TOKEN環境変数が設定されていません');
+            return;
+          }
+
+          try {
+            const result = await runDailyCollection({ db, githubToken });
+            console.log('スケジュール実行結果:', JSON.stringify(result));
+          } catch (error) {
+            console.error('スケジュール実行エラー:', error);
+          }
         }
       })()
     );
