@@ -2,12 +2,7 @@
  * API/Frontend間で共有される型定義
  */
 
-export type {
-  Repository,
-  RepoSnapshot,
-  MetricsDaily,
-  Language,
-} from './types/repository';
+export type { Repository, RepoSnapshot, MetricsDaily, Language } from './types/repository';
 
 export type {
   TrendItem,
@@ -28,4 +23,5 @@ export type {
   ErrorCode,
   ApiError,
   BatchCollectResponse,
+  BatchMetricsResponse,
 } from './types/api';
