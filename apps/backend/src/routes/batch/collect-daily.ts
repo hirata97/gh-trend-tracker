@@ -2,22 +2,21 @@
  * 日次データ収集バッチエンドポイント
  * POST /api/internal/batch/collect-daily
  *
- * リポジトリテーブルに登録済みの全リポジトリについて、
+ * リポジトリテーブルに登録済みのリポジトリについて、
  * GitHub APIから最新データを取得し、スナップショットとメトリクスを更新する
+ *
+ * クエリパラメータ:
+ *   limit - 処理するリポジトリ数の上限（デフォルト: 50、HTTPタイムアウト対策）
  */
 import { Hono } from 'hono';
 import type { AppEnv } from '../../types/app';
-import type { ApiError, BatchCollectResponse } from '@gh-trend-tracker/shared';
+import type { ApiError } from '@gh-trend-tracker/shared';
 import { internalAuthMiddleware } from '../../middleware/internal-auth';
 import { internalError } from '../../shared/errors';
-import { getTodayISO } from '../../shared/utils';
-import {
-  getAllRepositoryFullNames,
-  upsertRepository,
-  insertSnapshot,
-  calculateAndUpsertMetrics,
-} from '../../services/batch-db';
-import { fetchRepositories } from '../../services/github';
+import { runDailyCollection } from '../../services/batch-collector';
+
+/** HTTPリクエスト経由のデフォルト処理件数（タイムアウト対策） */
+const DEFAULT_HTTP_LIMIT = 50;
 
 const collectDaily = new Hono<AppEnv>();
 
@@ -25,7 +24,6 @@ const collectDaily = new Hono<AppEnv>();
 collectDaily.use('/*', internalAuthMiddleware);
 
 collectDaily.post('/', async (c) => {
-  const startTime = Date.now();
   const db = c.get('db');
   const githubToken = c.env.GITHUB_TOKEN;
 
@@ -35,64 +33,12 @@ collectDaily.post('/', async (c) => {
     return c.json(errorResponse, 500);
   }
 
+  // limitパラメータ（未指定時はDEFAULT_HTTP_LIMIT）
+  const limitParam = c.req.query('limit');
+  const limit = limitParam ? Math.max(1, Math.min(parseInt(limitParam, 10) || DEFAULT_HTTP_LIMIT, 1000)) : DEFAULT_HTTP_LIMIT;
+
   try {
-    // 1. 全リポジトリのfullNameリストを取得
-    const fullNames = await getAllRepositoryFullNames(db);
-    if (fullNames.length === 0) {
-      const response: BatchCollectResponse = {
-        message: 'No repositories to process',
-        summary: {
-          total: 0,
-          githubFetchSuccess: 0,
-          githubNotFound: 0,
-          githubErrors: 0,
-          dbUpdateSuccess: 0,
-          dbUpdateErrors: 0,
-        },
-        snapshotDate: getTodayISO(),
-        durationMs: Date.now() - startTime,
-      };
-      return c.json(response);
-    }
-
-    // 2. GitHub APIから最新データを取得
-    const fetchSummary = await fetchRepositories(fullNames, githubToken);
-
-    // 3. 成功分のDB更新（upsert repo → insert snapshot → calculate metrics）
-    const todayDate = getTodayISO();
-    let dbSuccess = 0;
-    let dbErrors = 0;
-
-    for (const result of fetchSummary.results) {
-      if (result.status !== 'success') continue;
-
-      try {
-        await upsertRepository(db, result.data);
-        await insertSnapshot(db, result.data, todayDate);
-        await calculateAndUpsertMetrics(db, result.data.id, todayDate);
-        dbSuccess++;
-      } catch (error) {
-        dbErrors++;
-        console.error(
-          `DB更新エラー: ${result.data.full_name} - ${error instanceof Error ? error.message : error}`
-        );
-      }
-    }
-
-    const response: BatchCollectResponse = {
-      message: 'Daily collection completed',
-      summary: {
-        total: fetchSummary.total,
-        githubFetchSuccess: fetchSummary.success,
-        githubNotFound: fetchSummary.notFound,
-        githubErrors: fetchSummary.errors,
-        dbUpdateSuccess: dbSuccess,
-        dbUpdateErrors: dbErrors,
-      },
-      snapshotDate: todayDate,
-      durationMs: Date.now() - startTime,
-    };
-
+    const response = await runDailyCollection({ db, githubToken, limit });
     return c.json(response);
   } catch (error) {
     console.error('バッチ処理中の致命的エラー:', error);

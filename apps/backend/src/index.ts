@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { drizzle } from 'drizzle-orm/d1';
 import health from './routes/health';
 import trendsDaily from './routes/trends-daily';
 import trends from './routes/trends';
@@ -7,6 +8,7 @@ import repositories from './routes/repositories';
 import languages from './routes/languages';
 import collectDaily from './routes/batch/collect-daily';
 import { dbMiddleware } from './middleware/database';
+import { runDailyCollection } from './services/batch-collector';
 import type { AppEnv } from './types/app';
 
 const app = new Hono<AppEnv>();
@@ -39,21 +41,23 @@ export default {
     env: AppEnv['Bindings'],
     ctx: ExecutionContext
   ) {
-    // Cronトリガーから内部APIを直接呼び出す
+    // Cronトリガー: 全リポジトリを処理（limit なし、タイムアウト15分）
     ctx.waitUntil(
       (async () => {
-        const url = 'http://localhost/api/internal/batch/collect-daily';
-        const response = await app.fetch(
-          new Request(url, {
-            method: 'POST',
-            headers: {
-              'X-Internal-Token': env.INTERNAL_API_TOKEN,
-            },
-          }),
-          env
-        );
-        const result = await response.json();
-        console.log('スケジュール実行結果:', JSON.stringify(result));
+        const db = drizzle(env.DB);
+        const githubToken = env.GITHUB_TOKEN;
+
+        if (!githubToken) {
+          console.error('GITHUB_TOKEN環境変数が設定されていません');
+          return;
+        }
+
+        try {
+          const result = await runDailyCollection({ db, githubToken });
+          console.log('スケジュール実行結果:', JSON.stringify(result));
+        } catch (error) {
+          console.error('スケジュール実行エラー:', error);
+        }
       })()
     );
   },
