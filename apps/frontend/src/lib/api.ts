@@ -12,6 +12,8 @@ import type {
   HistoryResponse,
   RepoDetailResponse,
   SearchResponse,
+  WeeklyTrendResponse,
+  AvailableWeeksResponse,
 } from '@gh-trend-tracker/shared';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
@@ -153,6 +155,50 @@ export async function searchRepositories(
 
   if (!response.ok) {
     throw new Error(`Failed to search repositories: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch weekly trend ranking
+ * @param year - ISO year
+ * @param week - ISO week number (1-53)
+ * @param language - Optional language filter
+ * @returns WeeklyTrendResponse with ranking data
+ */
+export async function getWeeklyTrends(
+  year: number,
+  week: number,
+  language?: string
+): Promise<WeeklyTrendResponse> {
+  const searchParams = new URLSearchParams();
+  searchParams.set('year', String(year));
+  searchParams.set('week', String(week));
+  if (language) searchParams.set('language', language);
+
+  const url = `${API_BASE}/api/trends/weekly?${searchParams.toString()}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch weekly trends: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch available weeks list
+ * @returns AvailableWeeksResponse with list of available weeks
+ */
+export async function getAvailableWeeks(): Promise<AvailableWeeksResponse> {
+  const url = `${API_BASE}/api/trends/weekly/available-weeks`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch available weeks: ${response.status} ${response.statusText}`);
   }
 
   return response.json();

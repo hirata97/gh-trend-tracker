@@ -1,0 +1,170 @@
+---
+/**
+ * Weekly Trends Page (scr-003)
+ * 週別トレンドランキングを表示
+ */
+import Layout from '../layouts/Layout.astro';
+import WeekSelector from '../components/WeekSelector';
+import LanguageFilterDropdown from '../components/LanguageFilterDropdown';
+import WeeklyRankingList from '../components/WeeklyRankingList';
+import { getWeeklyTrends, getAvailableWeeks, getLanguages } from '../lib/api';
+import type { WeeklyTrendItem, AvailableWeek } from '@gh-trend-tracker/shared';
+
+// Get parameters from query string
+const url = new URL(Astro.request.url);
+const yearParam = url.searchParams.get('year');
+const weekParam = url.searchParams.get('week');
+const selectedLanguage = url.searchParams.get('language') || 'all';
+
+// Fetch available weeks
+let availableWeeks: AvailableWeek[] = [];
+let error: string | null = null;
+
+try {
+  const weeksData = await getAvailableWeeks();
+  availableWeeks = weeksData.weeks || [];
+} catch (e) {
+  error = e instanceof Error ? e.message : 'Failed to fetch available weeks';
+  console.error('Failed to fetch available weeks:', e);
+}
+
+// Determine current year and week
+let currentYear: number;
+let currentWeek: number;
+
+if (yearParam && weekParam) {
+  currentYear = parseInt(yearParam, 10);
+  currentWeek = parseInt(weekParam, 10);
+} else if (availableWeeks.length > 0) {
+  // Use the latest available week
+  currentYear = availableWeeks[0].year;
+  currentWeek = availableWeeks[0].week;
+} else {
+  // Fallback if no data available
+  const now = new Date();
+  currentYear = now.getFullYear();
+  currentWeek = 1;
+}
+
+// Fetch weekly trends data
+let ranking: WeeklyTrendItem[] = [];
+let metadata = { year: currentYear, week: currentWeek, language: selectedLanguage };
+
+if (!error && availableWeeks.length > 0) {
+  try {
+    const trendsData = await getWeeklyTrends(
+      currentYear,
+      currentWeek,
+      selectedLanguage === 'all' ? undefined : selectedLanguage
+    );
+    ranking = trendsData.ranking || [];
+    metadata = trendsData.metadata;
+  } catch (e) {
+    error = e instanceof Error ? e.message : 'Failed to fetch weekly trends';
+    console.error('Failed to fetch weekly trends:', e);
+  }
+}
+
+// Fetch languages for filter
+let languages: (string | null)[] = [];
+try {
+  const languagesData = await getLanguages();
+  languages = languagesData.languages || [];
+} catch (e) {
+  console.error('Failed to fetch languages:', e);
+}
+---
+
+<Layout title={`週別トレンド - ${currentYear}年 第${currentWeek}週`}>
+  <div class="container">
+    <h1>週別トレンドランキング</h1>
+
+    {error ? (
+      <div class="error">
+        <strong>Error loading data:</strong> {error}
+        <br />
+        <br />
+        <p>Make sure the backend API is running and weekly ranking data has been calculated:</p>
+        <code>cd backend && npm run dev</code>
+      </div>
+    ) : (
+      <>
+        {availableWeeks.length > 0 ? (
+          <>
+            <WeekSelector
+              currentYear={currentYear}
+              currentWeek={currentWeek}
+              availableWeeks={availableWeeks}
+              onWeekChange={(year: number, week: number) => {
+                const params = new URLSearchParams(window.location.search);
+                params.set('year', String(year));
+                params.set('week', String(week));
+                window.location.href = `/weekly?${params.toString()}`;
+              }}
+              client:load
+            />
+
+            <div class="filter-bar">
+              <LanguageFilterDropdown
+                currentLanguage={selectedLanguage}
+                availableLanguages={languages.filter((lang): lang is string => lang !== null)}
+                onSelect={(language: string) => {
+                  const params = new URLSearchParams(window.location.search);
+                  if (language) {
+                    params.set('language', language);
+                  } else {
+                    params.delete('language');
+                  }
+                  window.location.href = `/weekly?${params.toString()}`;
+                }}
+                client:load
+              />
+            </div>
+
+            <WeeklyRankingList
+              ranking={ranking}
+              metadata={metadata}
+              client:load
+            />
+          </>
+        ) : (
+          <div class="weekly-ranking-empty">
+            <p class="weekly-ranking-empty__message">
+              週別トレンドデータがまだ集計されていません
+            </p>
+            <p class="weekly-ranking-empty__hint">
+              週別ランキングは毎週月曜日に自動集計されます
+            </p>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+</Layout>
+
+<style>
+  .error {
+    background: #ffeef0;
+    border: 1px solid #f0b0b7;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+  }
+
+  .error code {
+    display: block;
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: white;
+    border: 1px solid #e1e4e8;
+    border-radius: 4px;
+  }
+
+  .filter-bar {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f6f8fa;
+    border-radius: 8px;
+    border: 1px solid #e1e4e8;
+  }
+</style>
