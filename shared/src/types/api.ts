@@ -223,3 +223,32 @@ export interface SearchResponse {
   data: SearchResultItem[];
   total: number;
 }
+
+/** 週別トレンドランキングアイテム型（bac-004用） */
+export interface WeeklyTrendItem {
+  rank: number;
+  repo_id: string;
+  repo_full_name: string;
+  star_increase: number;
+}
+
+/** 週別トレンドランキングレスポンス型（bac-004） */
+export interface WeeklyTrendResponse {
+  metadata: {
+    year: number;
+    week: number;
+    language: string;
+  };
+  ranking: WeeklyTrendItem[];
+}
+
+/** 利用可能週の情報型 */
+export interface AvailableWeek {
+  year: number;
+  week: number;
+}
+
+/** 利用可能週リストレスポンス型（bac-005） */
+export interface AvailableWeeksResponse {
+  weeks: AvailableWeek[];
+}
