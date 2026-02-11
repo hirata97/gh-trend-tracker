@@ -3,9 +3,10 @@
  * Displays detailed repository information with stats and star history chart
  */
 
-import React from 'react';
 import type { RepoDetailResponse } from '@gh-trend-tracker/shared';
 import StarChart from './StarChart';
+import FavoriteButton from './FavoriteButton';
+import { useFavorites } from '../hooks/useFavorites';
 
 interface ChartData {
   date: string;
@@ -38,15 +39,24 @@ function getGrowthClass(rate: number | null): string {
 
 export default function RepoDetail({ detail, history }: Props) {
   const { repository, currentStats, weeklyGrowth, weeklyGrowthRate } = detail;
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   return (
     <div className="repo-detail">
       <header className="repo-header">
-        <h1>
-          <a href={repository.htmlUrl} target="_blank" rel="noopener noreferrer">
-            {repository.fullName}
-          </a>
-        </h1>
+        <div className="repo-title-row">
+          <h1>
+            <a href={repository.htmlUrl} target="_blank" rel="noopener noreferrer">
+              {repository.fullName}
+            </a>
+          </h1>
+          <FavoriteButton
+            repo={{ id: String(repository.repoId), full_name: repository.fullName }}
+            isFavorite={isFavorite(String(repository.repoId))}
+            onToggle={toggleFavorite}
+            size="large"
+          />
+        </div>
         {repository.description && <p className="repo-description">{repository.description}</p>}
         <div className="repo-meta">
           {repository.language && <span className="language-badge">{repository.language}</span>}
