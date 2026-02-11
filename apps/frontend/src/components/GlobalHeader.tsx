@@ -29,6 +29,9 @@ export default function GlobalHeader({ snapshotDate, isAuthenticated = false }: 
           <a href="/" className="global-header__link">
             Trends
           </a>
+          <a href="/favorites" className="global-header__link">
+            Favorites
+          </a>
         </nav>
 
         <div className="global-header__search">

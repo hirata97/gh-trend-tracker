@@ -870,6 +870,62 @@ input:focus {
 }
 
 /* ========================================
+   FavoritesList
+   ======================================== */
+.favorites-list {
+  margin-top: 1rem;
+}
+
+.favorites-list__header {
+  margin-bottom: 1rem;
+}
+
+.favorites-list__header h2 {
+  font-size: 1.25rem;
+  color: #24292e;
+  margin: 0;
+}
+
+.favorites-list__items {
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  background: white;
+  overflow: hidden;
+}
+
+.favorites-list__items .repo-list-item:last-child {
+  border-bottom: none;
+}
+
+.favorites-empty {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: #f6f8fa;
+  border-radius: 8px;
+  border: 1px solid #e1e4e8;
+}
+
+.favorites-empty__message {
+  font-size: 1.125rem;
+  color: #586069;
+  margin-bottom: 1rem;
+}
+
+.favorites-empty__hint {
+  font-size: 0.875rem;
+  color: #6a737d;
+}
+
+.favorites-empty__hint a {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.favorites-empty__hint a:hover {
+  text-decoration: underline;
+}
+
+/* ========================================
    FavoriteButton
    ======================================== */
 .favorite-button {
