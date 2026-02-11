@@ -1,0 +1,156 @@
+---
+/**
+ * Search Results Page (scr-004)
+ * Display search results for repository search.
+ * Related: fun-017 (search results list display)
+ */
+import Layout from '../layouts/Layout.astro';
+import RepositoryListItem from '../components/RepositoryListItem';
+import { searchRepositories } from '../lib/api';
+import type { SearchResultItem } from '@gh-trend-tracker/shared';
+
+// Get query parameter from URL
+const url = new URL(Astro.request.url);
+const query = url.searchParams.get('q');
+
+let results: SearchResultItem[] = [];
+let error: string | null = null;
+
+// Fetch search results if query is provided
+if (query && query.trim().length >= 2) {
+  try {
+    const searchData = await searchRepositories(query);
+    results = searchData.data || [];
+  } catch (e) {
+    error = e instanceof Error ? e.message : 'Unknown error occurred';
+    console.error('Failed to fetch search results:', e);
+  }
+}
+---
+
+<Layout title={query ? `Search: ${query}` : 'Search'}>
+  <div class="container">
+    <h1>Search Results</h1>
+
+    {!query ? (
+      <div class="search-empty">
+        <p>Please enter a search query.</p>
+        <a href="/" class="back-link">← Back to Trends</a>
+      </div>
+    ) : query.trim().length < 2 ? (
+      <div class="search-error">
+        <p>Search query must be at least 2 characters.</p>
+        <a href="/" class="back-link">← Back to Trends</a>
+      </div>
+    ) : error ? (
+      <div class="error">
+        <strong>Error loading search results:</strong> {error}
+        <br />
+        <br />
+        <p>Make sure the backend API is running:</p>
+        <code>npm run dev:backend</code>
+        <br />
+        <a href="/" class="back-link">← Back to Trends</a>
+      </div>
+    ) : (
+      <>
+        <div class="search-header">
+          <h2>
+            Search query: <strong>"{query}"</strong>
+          </h2>
+          <p class="search-count">
+            {results.length} {results.length === 1 ? 'repository' : 'repositories'} found
+          </p>
+        </div>
+
+        {results.length === 0 ? (
+          <div class="search-empty">
+            <p>No repositories found matching your query.</p>
+            <p>Try a different search term or browse the <a href="/">trending repositories</a>.</p>
+          </div>
+        ) : (
+          <div class="repo-list">
+            {results.map((repo) => (
+              <RepositoryListItem
+                repo={{
+                  id: repo.id,
+                  full_name: repo.full_name,
+                  description: repo.description,
+                  language: repo.language,
+                  stargazers_count: repo.stargazers_count,
+                  forks_count: 0,
+                }}
+                showMetrics={false}
+              />
+            ))}
+          </div>
+        )}
+
+        <div class="search-footer">
+          <a href="/" class="back-link">← Back to Trends</a>
+        </div>
+      </>
+    )}
+  </div>
+</Layout>
+
+<style>
+  .search-header {
+    margin-bottom: 2rem;
+  }
+
+  .search-header h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #333;
+  }
+
+  .search-header strong {
+    color: #1e88e5;
+  }
+
+  .search-count {
+    color: #666;
+    font-size: 0.95rem;
+  }
+
+  .search-empty,
+  .search-error {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #666;
+  }
+
+  .search-empty p,
+  .search-error p {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-top: 1rem;
+    color: #1e88e5;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  .back-link:hover {
+    color: #1565c0;
+    text-decoration: underline;
+  }
+
+  .repo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .search-footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e0e0e0;
+    text-align: center;
+  }
+</style>
