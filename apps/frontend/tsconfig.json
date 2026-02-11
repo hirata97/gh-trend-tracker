@@ -5,7 +5,7 @@
     "jsxImportSource": "react",
     "baseUrl": ".",
     "paths": {
-      "@gh-trend-tracker/shared": ["../../packages/shared-types/src"]
+      "@gh-trend-tracker/shared": ["../../shared/src"]
     }
   }
 }
