@@ -3,6 +3,8 @@ import { cors } from 'hono/cors';
 import { drizzle } from 'drizzle-orm/d1';
 import health from './routes/health';
 import trendsDaily from './routes/trends-daily';
+import trendsWeekly from './routes/trends-weekly';
+import trendsWeeklyAvailable from './routes/trends-weekly-available';
 import trends from './routes/trends';
 import repositories from './routes/repositories';
 import repositoriesSearch from './routes/repositories-search';
@@ -34,6 +36,8 @@ app.use('/*', dbMiddleware);
 // ルート登録
 app.route('/health', health);
 app.route('/api/trends/daily', trendsDaily);
+app.route('/api/trends/weekly/available-weeks', trendsWeeklyAvailable);
+app.route('/api/trends/weekly', trendsWeekly);
 app.route('/api/trends', trends);
 app.route('/api/repositories/search', repositoriesSearch);
 app.route('/api/repositories', repositories);

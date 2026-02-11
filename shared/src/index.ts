@@ -28,4 +28,8 @@ export type {
   BatchWeeklyRankingResponse,
   SearchResultItem,
   SearchResponse,
+  WeeklyTrendItem,
+  WeeklyTrendResponse,
+  AvailableWeek,
+  AvailableWeeksResponse,
 } from './types/api';
