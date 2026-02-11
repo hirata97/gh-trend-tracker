@@ -2,7 +2,7 @@
  * APIレスポンスのZodスキーマ定義（ランタイムバリデーション用）
  */
 import { z } from 'zod';
-import { TrendItemSchema, RepoSnapshotSchema } from './common';
+import { RepoSnapshotSchema } from './common';
 
 /**
  * ヘルスチェックレスポンススキーマ
@@ -10,14 +10,6 @@ import { TrendItemSchema, RepoSnapshotSchema } from './common';
 export const HealthResponseSchema = z.object({
   status: z.string(),
   timestamp: z.string(),
-});
-
-/**
- * トレンドレスポンススキーマ
- */
-export const TrendsResponseSchema = z.object({
-  language: z.string().optional(),
-  trends: z.array(TrendItemSchema),
 });
 
 /**

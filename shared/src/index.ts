@@ -5,12 +5,7 @@
 export type { Repository, RepoSnapshot, MetricsDaily, Language } from './types/repository';
 
 export type {
-  TrendItem,
-  TrendSortField,
-  SortOrder,
   SortBy,
-  TrendsQueryParams,
-  TrendsResponse,
   HistoryResponse,
   RepoDetailResponse,
   TrendsDailyItem,

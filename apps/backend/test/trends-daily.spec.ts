@@ -343,21 +343,4 @@ describe('/api/trends/daily', () => {
     });
   });
 
-  describe('後方互換性', () => {
-    it('既存の/api/trendsにアクセスしたらtrendsプロパティを含む200レスポンスが返されること', async () => {
-      const response = await SELF.fetch('http://example.com/api/trends');
-      expect(response.status).toBe(200);
-
-      const data = (await response.json()) as { trends: Array<unknown> };
-      expect(data).toHaveProperty('trends');
-    });
-
-    it('既存の/api/trends/:languageにアクセスしたらtrendsプロパティを含む200レスポンスが返されること', async () => {
-      const response = await SELF.fetch('http://example.com/api/trends/TypeScript');
-      expect(response.status).toBe(200);
-
-      const data = (await response.json()) as { trends: Array<unknown> };
-      expect(data).toHaveProperty('trends');
-    });
-  });
 });

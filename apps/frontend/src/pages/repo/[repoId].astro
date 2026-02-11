@@ -1,14 +1,15 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import RepoDetail from '../../components/RepoDetail';
-import { getTrends, getRepoDetail, getRepoHistory } from '../../lib/api';
+import { getTrendsDaily, getRepoDetail, getRepoHistory } from '../../lib/api';
 import type { RepoDetailResponse, RepoSnapshot } from '@gh-trend-tracker/shared';
 
 export async function getStaticPaths() {
   try {
-    const trendsData = await getTrends();
-    const paths = trendsData.trends.map((trend) => ({
-      params: { repoId: String(trend.repoId) },
+    // 日次トレンドAPIから全リポジトリIDを取得してstatic pathsを生成
+    const trendsData = await getTrendsDaily({ limit: 100 });
+    const paths = trendsData.data.map((trend) => ({
+      params: { repoId: trend.id },
     }));
     return paths;
   } catch (e) {

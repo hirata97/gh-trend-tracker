@@ -4,57 +4,8 @@
 
 import type { RepoSnapshot } from './repository';
 
-// トレンドアイテム型
-export interface TrendItem {
-  repoId: number;
-  name: string;
-  fullName: string;
-  owner: string;
-  language: string | null;
-  description: string | null;
-  htmlUrl: string;
-  currentStars: number | null; // LEFT JOINでスナップショットがない場合はnull
-  snapshotDate?: string | null;
-  weeklyGrowth: number | null; // 過去7日間のスター増加数
-  weeklyGrowthRate: number | null; // 増加率（%）
-}
-
-// 検索・フィルタ・ソートのパラメータ型
-export type TrendSortField = 'stars' | 'growth_rate' | 'weekly_growth';
-export type SortOrder = 'asc' | 'desc';
-
 // trends/daily用ソートオプション
 export type SortBy = '7d_increase' | '30d_increase' | '7d_rate' | '30d_rate' | 'total_stars';
-
-export interface TrendsQueryParams {
-  /** 言語フィルタ */
-  language?: string;
-  /** テキスト検索（リポジトリ名、説明文、オーナー名） */
-  q?: string;
-  /** 最小スター数 */
-  minStars?: number;
-  /** 最大スター数 */
-  maxStars?: number;
-  /** ソートフィールド */
-  sort?: TrendSortField;
-  /** ソート順序 */
-  order?: SortOrder;
-  /** 取得件数 */
-  limit?: number;
-}
-
-export interface TrendsResponse {
-  language?: string;
-  trends: TrendItem[];
-  /** 適用されたフィルタ情報 */
-  filters?: {
-    q?: string;
-    minStars?: number;
-    maxStars?: number;
-    sort?: TrendSortField;
-    order?: SortOrder;
-  };
-}
 
 export interface HistoryResponse {
   history: RepoSnapshot[];
