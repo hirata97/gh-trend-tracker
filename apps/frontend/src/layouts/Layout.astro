@@ -22,7 +22,7 @@ const { title, snapshotDate } = Astro.props;
     <ViewTransitions />
   </head>
   <body>
-    <GlobalHeader snapshotDate={snapshotDate} />
+    <GlobalHeader snapshotDate={snapshotDate} client:load />
     <slot />
   </body>
 </html>

@@ -1,0 +1,29 @@
+---
+/**
+ * Favorites Page (scr-010)
+ * お気に入りリポジトリ一覧画面
+ */
+
+import Layout from '../layouts/Layout.astro';
+import FavoritesList from '../components/FavoritesList';
+
+const pageTitle = 'お気に入り';
+---
+
+<Layout title={pageTitle}>
+  <main class="container">
+    <h1>{pageTitle}</h1>
+    <FavoritesList client:load favorites={[]} />
+  </main>
+</Layout>
+
+<style>
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    margin-bottom: 1.5rem;
+  }
+</style>

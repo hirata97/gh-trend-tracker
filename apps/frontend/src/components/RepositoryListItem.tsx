@@ -5,6 +5,8 @@
  */
 
 import MetricsBadge from './MetricsBadge';
+import FavoriteButton from './FavoriteButton';
+import { useFavorites } from '../hooks/useFavorites';
 
 interface RepositoryListItemProps {
   repo: {
@@ -20,7 +22,7 @@ interface RepositoryListItemProps {
     stars_30d_increase: number;
   };
   showMetrics?: boolean;
-  onFavoriteToggle?: (repoId: string) => void;
+  showFavoriteButton?: boolean;
 }
 
 function formatNumber(num: number): string {
@@ -34,8 +36,10 @@ export default function RepositoryListItem({
   repo,
   metrics,
   showMetrics = false,
-  onFavoriteToggle,
+  showFavoriteButton = false,
 }: RepositoryListItemProps) {
+  const { isFavorite, toggleFavorite } = useFavorites();
+
   return (
     <div className="repo-list-item">
       <div className="repo-list-item__header">
@@ -43,15 +47,13 @@ export default function RepositoryListItem({
           {repo.full_name}
         </a>
         {repo.language && <span className="language-badge">{repo.language}</span>}
-        {onFavoriteToggle && (
-          <button
-            className="repo-list-item__favorite"
-            onClick={() => onFavoriteToggle(repo.id)}
-            aria-label="Toggle favorite"
-            title="Toggle favorite"
-          >
-            &#9734;
-          </button>
+        {showFavoriteButton && (
+          <FavoriteButton
+            repo={{ id: repo.id, full_name: repo.full_name }}
+            isFavorite={isFavorite(repo.id)}
+            onToggle={toggleFavorite}
+            size="small"
+          />
         )}
       </div>
 
