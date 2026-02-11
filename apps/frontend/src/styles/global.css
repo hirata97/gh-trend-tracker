@@ -582,6 +582,11 @@ input:focus {
   color: rgba(255, 255, 255, 0.4);
 }
 
+.global-header__search {
+  flex: 1;
+  max-width: 400px;
+}
+
 /* ========================================
    RepositoryListItem (COM-001)
    ======================================== */
@@ -856,6 +861,63 @@ input:focus {
   align-items: center;
 }
 
+/* ========================================
+   SearchInput (COM-007)
+   ======================================== */
+.search-input {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+}
+
+.search-input__field {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #24292e;
+  margin: 0;
+  min-width: 0;
+}
+
+.search-input__field::placeholder {
+  color: #6c757d;
+}
+
+.search-input__field:focus {
+  outline: none;
+  border-color: #0366d6;
+  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1);
+  background: white;
+}
+
+.search-input__button {
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  background: rgba(255, 255, 255, 0.95);
+  color: #586069;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.search-input__button:hover:not(:disabled) {
+  background: white;
+  color: #0366d6;
+}
+
+.search-input__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   body {
@@ -923,6 +985,12 @@ input:focus {
 
   .global-header__snapshot {
     display: none;
+  }
+
+  .global-header__search {
+    order: 10;
+    width: 100%;
+    max-width: none;
   }
 
   /* RepositoryListItem Mobile */

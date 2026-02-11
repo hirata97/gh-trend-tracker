@@ -208,3 +208,18 @@ export interface BatchWeeklyRankingResponse {
   weekNumber: number;
   durationMs: number;
 }
+
+/** 検索結果アイテム型 */
+export interface SearchResultItem {
+  id: string;
+  full_name: string;
+  description: string | null;
+  language: string | null;
+  stargazers_count: number;
+}
+
+/** 検索APIレスポンス型 */
+export interface SearchResponse {
+  data: SearchResultItem[];
+  total: number;
+}

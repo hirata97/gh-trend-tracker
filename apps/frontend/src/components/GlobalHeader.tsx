@@ -1,8 +1,11 @@
 /**
  * GlobalHeader Component (COM-002)
- * Site-wide header with navigation and snapshot date display.
- * Related: fun-014 (snapshot date display)
+ * Site-wide header with navigation, search, and snapshot date display.
+ * Related: fun-014 (snapshot date display), fun-015 (repository search input)
  */
+
+import { useCallback } from 'react';
+import SearchInput from './SearchInput';
 
 interface GlobalHeaderProps {
   snapshotDate?: string;
@@ -10,6 +13,11 @@ interface GlobalHeaderProps {
 }
 
 export default function GlobalHeader({ snapshotDate, isAuthenticated = false }: GlobalHeaderProps) {
+  const handleSearch = useCallback((query: string) => {
+    // Navigate to search results page
+    window.location.href = `/search?q=${encodeURIComponent(query)}`;
+  }, []);
+
   return (
     <header className="global-header">
       <div className="global-header__inner">
@@ -22,6 +30,10 @@ export default function GlobalHeader({ snapshotDate, isAuthenticated = false }: 
             Trends
           </a>
         </nav>
+
+        <div className="global-header__search">
+          <SearchInput onSearch={handleSearch} placeholder="Search repositories..." />
+        </div>
 
         <div className="global-header__right">
           {snapshotDate && (

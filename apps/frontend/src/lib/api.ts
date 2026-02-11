@@ -11,6 +11,7 @@ import type {
   LanguagesResponse,
   HistoryResponse,
   RepoDetailResponse,
+  SearchResponse,
 } from '@gh-trend-tracker/shared';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
@@ -127,6 +128,31 @@ export async function getRepoDetail(repoId: number): Promise<RepoDetailResponse>
 
   if (!response.ok) {
     throw new Error(`Failed to fetch repository detail: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Search repositories by name or description
+ * @param query - Search query string (minimum 2 characters)
+ * @param limit - Maximum number of results to return
+ * @returns SearchResponse with matching repositories
+ */
+export async function searchRepositories(
+  query: string,
+  limit?: number
+): Promise<SearchResponse> {
+  const searchParams = new URLSearchParams();
+  searchParams.set('query', query);
+  if (limit !== undefined) searchParams.set('limit', String(limit));
+
+  const url = `${API_BASE}/api/repositories/search?${searchParams.toString()}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to search repositories: ${response.status} ${response.statusText}`);
   }
 
   return response.json();
