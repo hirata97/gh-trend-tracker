@@ -269,8 +269,16 @@ input:focus {
   border-bottom: 1px solid #e1e4e8;
 }
 
-.repo-header h1 {
+.repo-title-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   margin-bottom: 0.5rem;
+}
+
+.repo-header h1 {
+  margin-bottom: 0;
+  flex: 1;
 }
 
 .repo-header h1 a {
@@ -859,6 +867,46 @@ input:focus {
   display: flex;
   gap: 0.375rem;
   align-items: center;
+}
+
+/* ========================================
+   FavoriteButton
+   ======================================== */
+.favorite-button {
+  padding: 0.5rem;
+  font-size: 1.5rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #d1d5da;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.favorite-button:hover {
+  color: #e3b341;
+  border-color: #e1e4e8;
+  background: #f6f8fa;
+}
+
+.favorite-button--active {
+  color: #e3b341;
+}
+
+.favorite-button--small {
+  padding: 0.25rem;
+  font-size: 1rem;
+}
+
+.favorite-button--medium {
+  padding: 0.375rem 0.5rem;
+  font-size: 1.25rem;
+}
+
+.favorite-button--large {
+  padding: 0.5rem 0.75rem;
+  font-size: 1.5rem;
 }
 
 /* ========================================
