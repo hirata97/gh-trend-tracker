@@ -6,11 +6,14 @@
 
 | ID      | 分類     | メソッド | パス                                        | 概要                                     |
 | ------- | -------- | -------- | ------------------------------------------- | ---------------------------------------- |
+| bas-001 | システム | GET      | /health                                     | ヘルスチェック（DB接続確認）             |
 | bac-001 | 閲覧     | GET      | /api/trends/daily                           | 日次トレンドランキング一覧取得           |
-| bac-002 | 閲覧     | GET      | /api/repositories/{repoId}                  | リポジトリ詳細情報と90日間スター推移取得 |
+| bac-002 | 閲覧     | GET      | /api/repositories/{repoId}                  | リポジトリ詳細情報取得                   |
+| bac-002-1 | 閲覧   | GET      | /api/repositories/{repoId}/history          | リポジトリ90日間スター推移取得           |
 | bac-003 | 検索     | GET      | /api/repositories/search                    | リポジトリ名検索実行                     |
 | bac-004 | 週別分析 | GET      | /api/trends/weekly                          | 週別トレンドランキング取得               |
 | bac-005 | 週別分析 | GET      | /api/trends/weekly/available-weeks          | 閲覧可能な過去週リスト取得               |
+| bac-015 | 閲覧     | GET      | /api/languages                              | 言語一覧取得                             |
 | bac-006 | 認証     | GET      | /api/auth/callback/github                   | GitHub OAuth認証コールバック処理         |
 | bac-007 | AI機能   | GET      | /api/repositories/{repoId}/summary          | リポジトリAI要約取得                     |
 | bac-008 | AI機能   | POST     | /api/repositories/{repoId}/summary/generate | AI要約オンデマンド生成要求               |
@@ -20,6 +23,37 @@
 | bac-012 | バッチ   | POST     | /api/internal/batch/calculate-metrics       | 7日間/30日間スター増加率計算             |
 | bac-013 | バッチ   | POST     | /api/internal/batch/calculate-weekly        | 週別トレンド集計とランキング保存         |
 | bac-014 | バッチ   | POST     | /api/internal/batch/generate-ai             | 週別トップリポジトリAI要約自動生成       |
+
+---
+
+## bas-001: ヘルスチェック
+
+APIとデータベース接続の正常性を確認するエンドポイント。
+
+- **メソッド**: GET
+- **パス**: `/health`
+- **ファイル名**: `health.ts`
+- **認証**: 不要
+
+### レスポンス
+
+**200 OK**
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-02-11T10:30:00.000Z"
+}
+```
+
+**500 Internal Server Error**: データベース接続エラー
+
+```json
+{
+  "status": "error",
+  "message": "Database connection failed"
+}
+```
 
 ---
 
@@ -37,25 +71,34 @@
 
 | 名前     | 位置  | 型      | 必須 | 説明                                                                            |
 | -------- | ----- | ------- | ---- | ------------------------------------------------------------------------------- |
-| language | query | string  | No   | フィルタリング対象の言語コード (e.g., typescript)                               |
+| language | query | string  | No   | フィルタリング対象の言語コード (e.g., TypeScript)                               |
 | sort_by  | query | enum    | Yes  | ソート基準: `7d_increase`, `30d_increase`, `7d_rate`, `30d_rate`, `total_stars` |
 | page     | query | integer | No   | ページ番号（デフォルト: 1）                                                     |
-| limit    | query | integer | No   | 取得件数（デフォルト: 100）                                                     |
+| limit    | query | integer | No   | 取得件数（デフォルト: 20、最大: 100）                                           |
 
 ### レスポンス
 
 **200 OK**
 
 ```json
-[
-  {
-    "id": "a49ad09a-2117-46d6-91d9-6a6ce3975a96",
-    "full_name": "owner/repo-name",
-    "stargazers_count": 12000,
-    "stars_7d_increase": 500,
-    "stars_30d_rate": 0.15
+{
+  "data": [
+    {
+      "id": 123,
+      "full_name": "facebook/react",
+      "stargazers_count": 12000,
+      "stars_7d_increase": 500,
+      "stars_30d_increase": 1200,
+      "stars_7d_rate": 0.042,
+      "stars_30d_rate": 0.11
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 450
   }
-]
+}
 ```
 
 ### 処理手順
@@ -67,21 +110,21 @@
 
 ---
 
-## bac-002: リポジトリ詳細情報と90日間スター推移取得
+## bac-002: リポジトリ詳細情報取得
 
-特定のリポジトリIDに基づき、基本情報、トピックス、および過去90日間の日次スター数スナップショットデータを取得する。
+特定のリポジトリIDに基づき、基本情報とトピックスを取得する。
 
 - **メソッド**: GET
 - **パス**: `/api/repositories/{repoId}`
-- **ファイル名**: `repositories-[repoId].ts`
+- **ファイル名**: `repositories.ts`
 - **関連画面**: [scr-002](./画面一覧.md#scr-002-リポジトリ詳細画面)
-- **関連機能**: fun-012, fun-048
+- **関連機能**: fun-048
 
 ### パラメータ
 
-| 名前   | 位置 | 型   | 必須 | 説明           |
-| ------ | ---- | ---- | ---- | -------------- |
-| repoId | path | UUID | Yes  | リポジトリUUID |
+| 名前   | 位置 | 型      | 必須 | 説明                    |
+| ------ | ---- | ------- | ---- | ----------------------- |
+| repoId | path | integer | Yes  | リポジトリ内部ID        |
 
 ### レスポンス
 
@@ -89,12 +132,56 @@
 
 ```json
 {
-  "full_name": "owner/repo",
-  "description": "A great repo",
-  "topics": ["typescript", "react"],
-  "history": [{ "date": "2026-01-01", "stargazers_count": 11500, "daily_increase": 50 }]
+  "id": 123,
+  "repo_id": 10270250,
+  "full_name": "facebook/react",
+  "description": "A JavaScript library for building user interfaces",
+  "language": "JavaScript",
+  "topics": ["react", "javascript", "ui"],
+  "html_url": "https://github.com/facebook/react",
+  "created_at": "2013-05-24T16:15:54Z",
+  "updated_at": "2026-02-11T10:30:00Z"
 }
 ```
+
+**404 Not Found**: リポジトリが見つかりません
+
+---
+
+## bac-002-1: リポジトリ90日間スター推移取得
+
+特定のリポジトリの過去90日間の日次スター数スナップショットデータを取得する。
+
+- **メソッド**: GET
+- **パス**: `/api/repositories/{repoId}/history`
+- **ファイル名**: `repositories.ts`
+- **関連画面**: [scr-002](./画面一覧.md#scr-002-リポジトリ詳細画面)
+- **関連機能**: fun-012, fun-013
+
+### パラメータ
+
+| 名前   | 位置 | 型      | 必須 | 説明             |
+| ------ | ---- | ------- | ---- | ---------------- |
+| repoId | path | integer | Yes  | リポジトリ内部ID |
+
+### レスポンス
+
+**200 OK**
+
+```json
+[
+  {
+    "snapshot_date": "2026-02-11",
+    "stars": 12000
+  },
+  {
+    "snapshot_date": "2026-02-10",
+    "stars": 11950
+  }
+]
+```
+
+**備考**: 前日比（daily_increase）はフロントエンドで計算される。
 
 **404 Not Found**: リポジトリが見つかりません
 
@@ -176,6 +263,42 @@
 [
   { "year": 2026, "week": 5 },
   { "year": 2026, "week": 6 }
+]
+```
+
+---
+
+## bac-015: 言語一覧取得
+
+利用可能な言語の一覧を取得する。言語フィルタリングUIの選択肢として使用される。
+
+- **メソッド**: GET
+- **パス**: `/api/languages`
+- **ファイル名**: `languages.ts`
+- **関連画面**: [scr-001](./画面一覧.md#scr-001-トレンド一覧画面-日次)
+- **関連機能**: fun-006
+
+### レスポンス
+
+**200 OK**
+
+```json
+[
+  {
+    "code": "all",
+    "name_ja": "すべて",
+    "sort_order": 0
+  },
+  {
+    "code": "TypeScript",
+    "name_ja": "TypeScript",
+    "sort_order": 1
+  },
+  {
+    "code": "Python",
+    "name_ja": "Python",
+    "sort_order": 2
+  }
 ]
 ```
 
