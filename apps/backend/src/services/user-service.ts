@@ -3,6 +3,7 @@
  */
 
 import { eq } from 'drizzle-orm';
+import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { users } from '../db/schema';
 import type { User, NewUser } from '../db/schema';
 
@@ -23,7 +24,7 @@ function generateUuid(): string {
  * @returns ユーザー情報（存在しない場合はnull）
  */
 export async function findUserByGitHubId(
-  db: any,
+  db: DrizzleD1Database,
   githubId: number
 ): Promise<User | null> {
   const result = await db.select().from(users).where(eq(users.githubId, githubId)).limit(1);
@@ -39,7 +40,7 @@ export async function findUserByGitHubId(
  * @returns ユーザー情報（存在しない場合はnull）
  */
 export async function findUserById(
-  db: any,
+  db: DrizzleD1Database,
   userId: string
 ): Promise<User | null> {
   const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -58,7 +59,7 @@ export async function findUserById(
  * @returns 作成されたユーザー情報
  */
 export async function createUser(
-  db: any,
+  db: DrizzleD1Database,
   githubId: number,
   username: string,
   email?: string | null,
@@ -96,7 +97,7 @@ export async function createUser(
  * @returns 更新されたユーザー情報
  */
 export async function updateUser(
-  db: any,
+  db: DrizzleD1Database,
   githubId: number,
   username: string,
   email?: string | null,
@@ -133,7 +134,7 @@ export async function updateUser(
  * @returns ユーザー情報
  */
 export async function upsertUser(
-  db: any,
+  db: DrizzleD1Database,
   githubId: number,
   username: string,
   email?: string | null,
