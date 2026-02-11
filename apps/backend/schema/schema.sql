@@ -71,6 +71,24 @@ INSERT OR IGNORE INTO languages (code, name_ja, sort_order) VALUES
   ('Rust', 'Rust', 5),
   ('Java', 'Java', 6);
 
+-- Users table (Phase 3: Authentication & Billing)
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY NOT NULL,  -- UUID
+  github_id INTEGER UNIQUE NOT NULL,
+  username TEXT NOT NULL,
+  email TEXT,
+  avatar_url TEXT,
+  plan TEXT NOT NULL DEFAULT 'FREE',  -- 'FREE', 'PRO', 'ENTERPRISE'
+  credits_remaining INTEGER NOT NULL DEFAULT 0,
+  stripe_customer_id TEXT UNIQUE,
+  subscription_expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id);
+CREATE INDEX IF NOT EXISTS idx_users_stripe ON users(stripe_customer_id);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_repos_language ON repositories(language);
 CREATE INDEX IF NOT EXISTS idx_repos_updated ON repositories(updated_at DESC);
