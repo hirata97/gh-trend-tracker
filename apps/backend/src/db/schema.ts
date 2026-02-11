@@ -88,6 +88,32 @@ export const languages = sqliteTable('languages', {
   sortOrder: integer('sort_order').notNull().default(100),
 });
 
+// ユーザーテーブル (Phase 3: 認証 & 課金)
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey().notNull(), // UUID
+    githubId: integer('github_id').unique().notNull(),
+    username: text('username').notNull(),
+    email: text('email'),
+    avatarUrl: text('avatar_url'),
+    plan: text('plan').notNull().default('FREE'), // 'FREE', 'PRO', 'ENTERPRISE'
+    creditsRemaining: integer('credits_remaining').notNull().default(0),
+    stripeCustomerId: text('stripe_customer_id').unique(),
+    subscriptionExpiresAt: text('subscription_expires_at'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => ({
+    githubIdIdx: index('idx_users_github_id').on(table.githubId),
+    stripeIdx: index('idx_users_stripe').on(table.stripeCustomerId),
+  })
+);
+
 export type Repository = typeof repositories.$inferSelect;
 export type NewRepository = typeof repositories.$inferInsert;
 export type RepoSnapshot = typeof repoSnapshots.$inferSelect;
@@ -98,3 +124,5 @@ export type RankingWeekly = typeof rankingWeekly.$inferSelect;
 export type NewRankingWeekly = typeof rankingWeekly.$inferInsert;
 export type Language = typeof languages.$inferSelect;
 export type NewLanguage = typeof languages.$inferInsert;
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
