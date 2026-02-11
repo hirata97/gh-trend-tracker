@@ -26,4 +26,6 @@ export type {
   BatchMetricsResponse,
   WeeklyRankEntry,
   BatchWeeklyRankingResponse,
+  SearchResultItem,
+  SearchResponse,
 } from './types/api';
