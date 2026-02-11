@@ -5,7 +5,12 @@
  */
 
 import { formatWeekRange } from '../utils/weekUtils';
-import type { AvailableWeek } from '@gh-trend-tracker/shared';
+
+/** 利用可能な週の情報 */
+interface AvailableWeek {
+  year: number;
+  week: number;
+}
 
 interface WeekSelectorProps {
   /** 現在選択されている年 */
