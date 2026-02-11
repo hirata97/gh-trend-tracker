@@ -27,10 +27,13 @@ export default function GlobalHeader({ snapshotDate, isAuthenticated = false }: 
 
         <nav className="global-header__nav">
           <a href="/" className="global-header__link">
-            Trends
+            日次トレンド
+          </a>
+          <a href="/weekly" className="global-header__link">
+            週別トレンド
           </a>
           <a href="/favorites" className="global-header__link">
-            Favorites
+            お気に入り
           </a>
         </nav>
 
