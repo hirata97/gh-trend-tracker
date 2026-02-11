@@ -35,17 +35,3 @@ export const RepoSnapshotSchema = z.object({
   createdAt: z.string(),
 });
 
-/**
- * トレンドアイテムスキーマ
- */
-export const TrendItemSchema = z.object({
-  repoId: z.number().int().positive(),
-  name: z.string(),
-  fullName: z.string(),
-  owner: z.string(),
-  language: z.string().nullable(),
-  description: z.string().nullable(),
-  htmlUrl: z.string().url(),
-  currentStars: z.number().int().nullable(),
-  snapshotDate: z.string().nullable().optional(),
-});
