@@ -28,3 +28,10 @@ export type {
   AvailableWeek,
   AvailableWeeksResponse,
 } from './types/api';
+
+export type {
+  JwtPayload,
+  GitHubUser,
+  GitHubTokenResponse,
+  AuthCallbackError,
+} from './types/auth';
