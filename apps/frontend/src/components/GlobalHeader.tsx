@@ -1,18 +1,21 @@
 /**
  * GlobalHeader Component (COM-002)
  * Site-wide header with navigation, search, and snapshot date display.
- * Related: fun-014 (snapshot date display), fun-015 (repository search input)
+ * Related: fun-014 (snapshot date display), fun-015 (repository search input), fun-030 (GitHub OAuth認証)
  */
 
 import { useCallback } from 'react';
 import SearchInput from './SearchInput';
+import AuthButton from './AuthButton';
+import { useAuth } from '../hooks/useAuth';
 
 interface GlobalHeaderProps {
   snapshotDate?: string;
-  isAuthenticated?: boolean;
 }
 
-export default function GlobalHeader({ snapshotDate, isAuthenticated = false }: GlobalHeaderProps) {
+export default function GlobalHeader({ snapshotDate }: GlobalHeaderProps) {
+  const { isAuthenticated, user, login, logout } = useAuth();
+
   const handleSearch = useCallback((query: string) => {
     // Navigate to search results page
     window.location.href = `/search?q=${encodeURIComponent(query)}`;
@@ -47,11 +50,12 @@ export default function GlobalHeader({ snapshotDate, isAuthenticated = false }: 
               Data: {snapshotDate}
             </span>
           )}
-          {isAuthenticated ? (
-            <span className="global-header__auth">Logged in</span>
-          ) : (
-            <span className="global-header__auth global-header__auth--guest">Guest</span>
-          )}
+          <AuthButton
+            isAuthenticated={isAuthenticated}
+            user={user}
+            onLogin={login}
+            onLogout={logout}
+          />
         </div>
       </div>
     </header>
