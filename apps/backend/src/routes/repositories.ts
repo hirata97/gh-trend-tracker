@@ -3,12 +3,15 @@ import { getRepositoryHistory, getRepositoryDetail } from '../shared/queries';
 import { DEFAULT_HISTORY_DAYS } from '../shared/constants';
 import { parsePositiveInt } from '../shared/utils';
 import { validationError, notFoundError, dbError } from '../shared/errors';
+import { cacheMiddleware } from '../middleware/cache';
 import type { HistoryResponse, RepoDetailResponse, ApiError } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
 const repositories = new Hono<AppEnv>();
 
-// リポジトリの詳細情報
+// リポジトリの詳細情報（5分キャッシュ、10分stale-while-revalidate）
+repositories.use('/:repoId', cacheMiddleware(300, 600));
+
 repositories.get('/:repoId', async (c) => {
   const repoId = parsePositiveInt(c.req.param('repoId'));
 
@@ -36,7 +39,9 @@ repositories.get('/:repoId', async (c) => {
   }
 });
 
-// リポジトリの履歴データ
+// リポジトリの履歴データ（5分キャッシュ、10分stale-while-revalidate）
+repositories.use('/:repoId/history', cacheMiddleware(300, 600));
+
 repositories.get('/:repoId/history', async (c) => {
   const repoId = parsePositiveInt(c.req.param('repoId'));
 

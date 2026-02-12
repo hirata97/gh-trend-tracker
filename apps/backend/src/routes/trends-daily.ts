@@ -3,10 +3,14 @@ import { eq, desc, and, sql } from 'drizzle-orm';
 import { repositories, metricsDaily, repoSnapshots } from '../db/schema';
 import { TrendsDailyQuerySchema } from '../schemas/trends';
 import { validationError, dbError } from '../shared/errors';
+import { cacheMiddleware } from '../middleware/cache';
 import type { TrendsDailyResponse, ApiError } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
 const trendsDaily = new Hono<AppEnv>();
+
+// キャッシュミドルウェアを適用（1分キャッシュ、5分stale-while-revalidate）
+trendsDaily.use('/', cacheMiddleware(60, 300));
 
 trendsDaily.get('/', async (c) => {
   const db = c.get('db');
