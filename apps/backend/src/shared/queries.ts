@@ -61,6 +61,7 @@ function calculateWeeklyGrowthRate(
 
 /**
  * リポジトリ詳細情報を取得（スター増加率付き）
+ * 最適化：1つのクエリで全てのスナップショットを取得
  */
 export async function getRepositoryDetail(db: DrizzleD1Database, repoId: number) {
   // リポジトリ基本情報を取得
@@ -74,22 +75,16 @@ export async function getRepositoryDetail(db: DrizzleD1Database, repoId: number)
     return null;
   }
 
-  // 今日のスナップショットを取得
-  const [todaySnapshot] = await db
+  // 最新7件のスナップショットを一度に取得（最新と7日前を含む）
+  const snapshots = await db
     .select()
     .from(repoSnapshots)
     .where(eq(repoSnapshots.repoId, repoId))
     .orderBy(desc(repoSnapshots.snapshotDate))
-    .limit(1);
+    .limit(7);
 
-  // 7日前のスナップショットを取得
-  const [weekAgoSnapshot] = await db
-    .select()
-    .from(repoSnapshots)
-    .where(eq(repoSnapshots.repoId, repoId))
-    .orderBy(desc(repoSnapshots.snapshotDate))
-    .offset(6)
-    .limit(1);
+  const todaySnapshot = snapshots[0] ?? null;
+  const weekAgoSnapshot = snapshots[6] ?? null;
 
   // トピックスをパース
   let topics: string[] = [];

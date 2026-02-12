@@ -73,7 +73,7 @@ if (sortBy !== '7d_increase') {
       <>
         <FilterBar
           languages={languages}
-          client:load
+          client:visible
           transition:persist="filter-bar"
         />
 
@@ -86,7 +86,7 @@ if (sortBy !== '7d_increase') {
         <TrendList
           initialTrends={trends}
           initialPagination={{ page: pagination.page, totalPages: pagination.totalPages }}
-          client:load
+          client:visible
         />
       </>
     )}
