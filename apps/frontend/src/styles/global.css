@@ -1434,3 +1434,130 @@ input:focus {
   border: 0;
   border-top: 1px solid #e1e4e8;
 }
+
+/* ===== 料金プラン ===== */
+
+.pricing-table {
+  width: 100%;
+}
+
+.pricing-table__error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.pricing-table__plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.pricing-card {
+  background: #fff;
+  border: 1px solid #e1e4e8;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  transition: box-shadow 0.2s;
+}
+
+.pricing-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.pricing-card--featured {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.pricing-card__header {
+  text-align: center;
+}
+
+.pricing-card__name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.pricing-card__price {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #6366f1;
+}
+
+.pricing-card__features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.pricing-card__feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.pricing-card__check {
+  color: #22c55e;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pricing-card__action {
+  text-align: center;
+}
+
+.pricing-card__button {
+  display: inline-block;
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.2s;
+}
+
+.pricing-card__button:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.pricing-card__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pricing-card__button--primary {
+  background-color: #6366f1;
+  color: #fff;
+}
+
+.pricing-card__button--secondary {
+  background-color: transparent;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.pricing-card__badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  color: #6b7280;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}

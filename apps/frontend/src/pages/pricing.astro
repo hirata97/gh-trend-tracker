@@ -1,0 +1,81 @@
+---
+/**
+ * Pricing Page (scr-008)
+ * プラン比較・選択画面
+ * Related: fun-049 (Stripe Checkoutセッション生成・リダイレクト)
+ */
+import Layout from '../layouts/Layout.astro';
+import PricingTable from '../components/PricingTable';
+
+const pageTitle = '料金プラン';
+
+// サーバーサイドでのユーザー認証確認（Cookie経由）
+const cookieHeader = Astro.request.headers.get('cookie') ?? '';
+const authToken = cookieHeader
+  .split(';')
+  .map((c) => c.trim())
+  .find((c) => c.startsWith('auth_token='))
+  ?.split('=')[1];
+
+const isAuthenticated = !!authToken;
+---
+
+<Layout title={pageTitle}>
+  <main class="container">
+    <div class="pricing-page">
+      <div class="pricing-page__header">
+        <h1 class="pricing-page__title">料金プラン</h1>
+        <p class="pricing-page__subtitle">
+          GitHubトレンドをより深く分析するためのプレミアム機能をご利用ください
+        </p>
+      </div>
+      <PricingTable
+        client:load
+        isAuthenticated={isAuthenticated}
+      />
+      <div class="pricing-page__note">
+        <p>※ お支払いはStripeによる安全な決済で処理されます</p>
+        <p>※ サブスクリプションはいつでもキャンセル可能です</p>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .pricing-page {
+    padding: 2rem 0;
+  }
+
+  .pricing-page__header {
+    text-align: center;
+    margin-bottom: 3rem;
+  }
+
+  .pricing-page__title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+  }
+
+  .pricing-page__subtitle {
+    color: var(--color-text-secondary, #6b7280);
+    font-size: 1.1rem;
+  }
+
+  .pricing-page__note {
+    margin-top: 2rem;
+    text-align: center;
+    color: var(--color-text-secondary, #6b7280);
+    font-size: 0.875rem;
+  }
+
+  .pricing-page__note p {
+    margin: 0.25rem 0;
+  }
+</style>

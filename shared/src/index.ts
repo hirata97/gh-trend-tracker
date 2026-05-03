@@ -35,3 +35,10 @@ export type {
   GitHubTokenResponse,
   AuthCallbackError,
 } from './types/auth';
+
+export type {
+  PlanType,
+  CheckoutRequest,
+  CheckoutResponse,
+  PlanDetail,
+} from './types/billing';
