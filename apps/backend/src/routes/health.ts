@@ -10,13 +10,16 @@ health.get('/', async (c) => {
 
   try {
     const db = c.get('db');
+    const dbStart = Date.now();
     // 軽量なクエリでDB接続確認
     await db.run(sql`SELECT 1`);
+    const dbLatency_ms = Date.now() - dbStart;
 
     const response: HealthResponse = {
       status: 'ok',
       timestamp,
       database: 'connected',
+      dbLatency_ms,
     };
     return c.json(response);
   } catch (error) {
