@@ -53,7 +53,7 @@ wrangler whoami
 
 | ツール       | 用途                      |
 | ------------ | ------------------------- |
-| Node.js 20   | JavaScript実行環境        |
+| Node.js 22   | JavaScript実行環境        |
 | Wrangler CLI | Cloudflare Workers/D1管理 |
 | GitHub CLI   | GitHub操作                |
 | Claude Code  | AI支援開発                |
