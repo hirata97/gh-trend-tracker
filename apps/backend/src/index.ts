@@ -19,12 +19,17 @@ import billingCheckout from './routes/billing/checkout';
 import stripeWebhook from './routes/webhook/stripe';
 import { dbMiddleware } from './middleware/database';
 import { rateLimitMiddleware } from './middleware/rate-limit';
+import { loggingMiddleware } from './middleware/logging';
 import { runDailyCollection } from './services/batch-collector';
 import { runMetricsCalculation } from './services/metrics-calculator';
 import { runWeeklyRankingCalculation } from './services/weekly-ranking-calculator';
+import { logger } from './utils/logger';
 import type { AppEnv } from './types/app';
 
 const app = new Hono<AppEnv>();
+
+// リクエストログミドルウェア（全ルートに適用）
+app.use('/*', loggingMiddleware);
 
 // CORS設定（環境変数で許可オリジンを制御）
 // 本番環境: ALLOWED_ORIGINS環境変数を設定してオリジンを制限すること
@@ -77,34 +82,71 @@ export default {
 
         if (event.cron === '30 0 * * *') {
           // メトリクス計算（UTC 0:30）
+          const batchStart = Date.now();
           try {
             const result = await runMetricsCalculation({ db });
-            console.log('メトリクス計算結果:', JSON.stringify(result));
+            logger.info('batch_completed', {
+              batch: 'calculate-metrics',
+              cron: event.cron,
+              duration_ms: Date.now() - batchStart,
+              result,
+            });
           } catch (error) {
-            console.error('メトリクス計算エラー:', error);
+            logger.error('batch_failed', {
+              batch: 'calculate-metrics',
+              cron: event.cron,
+              duration_ms: Date.now() - batchStart,
+              error: String(error),
+            });
           }
         } else if (event.cron === '0 1 * * 1') {
           // 週別ランキング集計（毎週月曜 UTC 1:00）
+          const batchStart = Date.now();
           try {
             const result = await runWeeklyRankingCalculation({ db });
-            console.log('週別ランキング集計結果:', JSON.stringify(result));
+            logger.info('batch_completed', {
+              batch: 'calculate-weekly',
+              cron: event.cron,
+              duration_ms: Date.now() - batchStart,
+              result,
+            });
           } catch (error) {
-            console.error('週別ランキング集計エラー:', error);
+            logger.error('batch_failed', {
+              batch: 'calculate-weekly',
+              cron: event.cron,
+              duration_ms: Date.now() - batchStart,
+              error: String(error),
+            });
           }
         } else {
           // 日次データ収集（UTC 0:00）
           const githubToken = env.GITHUB_TOKEN;
 
           if (!githubToken) {
-            console.error('GITHUB_TOKEN環境変数が設定されていません');
+            logger.error('batch_failed', {
+              batch: 'collect-daily',
+              cron: event.cron,
+              error: 'GITHUB_TOKEN環境変数が設定されていません',
+            });
             return;
           }
 
+          const batchStart = Date.now();
           try {
             const result = await runDailyCollection({ db, githubToken });
-            console.log('スケジュール実行結果:', JSON.stringify(result));
+            logger.info('batch_completed', {
+              batch: 'collect-daily',
+              cron: event.cron,
+              duration_ms: Date.now() - batchStart,
+              result,
+            });
           } catch (error) {
-            console.error('スケジュール実行エラー:', error);
+            logger.error('batch_failed', {
+              batch: 'collect-daily',
+              cron: event.cron,
+              duration_ms: Date.now() - batchStart,
+              error: String(error),
+            });
           }
         }
       })()

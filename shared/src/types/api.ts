@@ -75,6 +75,7 @@ export interface HealthResponse {
   status: 'ok' | 'unhealthy';
   timestamp: string;
   database: 'connected' | 'disconnected';
+  dbLatency_ms?: number;
 }
 
 export interface ErrorResponse {
