@@ -16,6 +16,7 @@ import callbackGithub from './routes/auth/callback-github';
 import me from './routes/auth/me';
 import logout from './routes/auth/logout';
 import { dbMiddleware } from './middleware/database';
+import { rateLimitMiddleware } from './middleware/rate-limit';
 import { runDailyCollection } from './services/batch-collector';
 import { runMetricsCalculation } from './services/metrics-calculator';
 import { runWeeklyRankingCalculation } from './services/weekly-ranking-calculator';
@@ -24,6 +25,8 @@ import type { AppEnv } from './types/app';
 const app = new Hono<AppEnv>();
 
 // CORS設定（環境変数で許可オリジンを制御）
+// 本番環境: ALLOWED_ORIGINS環境変数を設定してオリジンを制限すること
+// 開発環境: ALLOWED_ORIGINSが未設定の場合は'*'（全て許可）
 app.use('/*', async (c, next) => {
   const allowedOrigins = c.env.ALLOWED_ORIGINS?.split(',') ?? [];
   const corsMiddleware = cors({
@@ -32,6 +35,14 @@ app.use('/*', async (c, next) => {
   });
   return corsMiddleware(c, next);
 });
+
+// レート制限ミドルウェア（100 req/min/IP）
+// non-008: APIレート制限（100 req/min/IP）
+// 内部バッチAPIには適用しない
+app.use('/api/trends/*', rateLimitMiddleware(60 * 1000, 100));
+app.use('/api/repositories/*', rateLimitMiddleware(60 * 1000, 100));
+app.use('/api/languages', rateLimitMiddleware(60 * 1000, 100));
+app.use('/api/auth/*', rateLimitMiddleware(60 * 1000, 100));
 
 // データベースミドルウェア
 app.use('/*', dbMiddleware);

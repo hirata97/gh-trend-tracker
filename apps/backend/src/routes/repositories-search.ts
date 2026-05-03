@@ -29,7 +29,9 @@ repositoriesSearch.get('/', async (c) => {
 
   try {
     // 検索パターン（部分一致用）
-    const pattern = `%${searchQuery}%`;
+    // SQLインジェクション対策: LIKE特殊文字（%、_）をエスケープ
+    const escapedQuery = searchQuery.replace(/[%_]/g, '\\$&');
+    const pattern = `%${escapedQuery}%`;
 
     // 最新のスナップショット日付を取得
     const snapshotDate = getTodayISO();
