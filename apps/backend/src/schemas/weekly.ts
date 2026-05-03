@@ -9,7 +9,7 @@ import { z } from 'zod';
 export const WeeklyTrendsQuerySchema = z.object({
   year: z.coerce.number().int().min(2020).max(2100),
   week: z.coerce.number().int().min(1).max(53),
-  language: z.string().optional(),
+  language: z.string().max(50, 'Language must be at most 50 characters').optional(),
 });
 
 export type WeeklyTrendsQuery = z.infer<typeof WeeklyTrendsQuerySchema>;

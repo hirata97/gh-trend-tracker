@@ -20,7 +20,7 @@ export type TrendsDailySortBy = z.infer<typeof TrendsDailySortBySchema>;
  * /api/trends/daily クエリパラメータスキーマ
  */
 export const TrendsDailyQuerySchema = z.object({
-  language: z.string().optional(),
+  language: z.string().max(50, 'Language must be at most 50 characters').optional(),
   sort_by: TrendsDailySortBySchema,
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
