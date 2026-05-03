@@ -1,0 +1,87 @@
+---
+/**
+ * Payment Success Page (scr-009)
+ * 決済成功画面
+ * Related: fun-049, fun-051
+ */
+import Layout from '../../layouts/Layout.astro';
+
+const pageTitle = '決済完了';
+---
+
+<Layout title={pageTitle}>
+  <main class="container">
+    <div class="result-page result-page--success">
+      <div class="result-page__icon" aria-hidden="true">✓</div>
+      <h1 class="result-page__title">決済が完了しました</h1>
+      <p class="result-page__message">
+        プランの有効化が完了しました。プレミアム機能をお楽しみください。
+      </p>
+      <div class="result-page__actions">
+        <a href="/" class="result-page__button result-page__button--primary">
+          トレンドを見る
+        </a>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .result-page {
+    text-align: center;
+    padding: 4rem 2rem;
+  }
+
+  .result-page__icon {
+    font-size: 4rem;
+    line-height: 1;
+    margin-bottom: 1.5rem;
+  }
+
+  .result-page--success .result-page__icon {
+    color: #22c55e;
+  }
+
+  .result-page__title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .result-page__message {
+    color: var(--color-text-secondary, #6b7280);
+    margin-bottom: 2rem;
+    font-size: 1.05rem;
+  }
+
+  .result-page__actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .result-page__button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  .result-page__button:hover {
+    opacity: 0.85;
+  }
+
+  .result-page__button--primary {
+    background-color: var(--color-primary, #6366f1);
+    color: #fff;
+  }
+</style>

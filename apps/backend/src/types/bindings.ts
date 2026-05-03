@@ -15,4 +15,9 @@ export type Bindings = {
   REDIRECT_URI?: string;
   // フロントエンドURL（デフォルト: http://localhost:4321）
   FRONTEND_URL?: string;
+  // Stripe
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_PRO?: string;
+  STRIPE_PRICE_ENTERPRISE?: string;
 };

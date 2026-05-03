@@ -1,0 +1,96 @@
+---
+/**
+ * Payment Cancel Page (scr-009)
+ * 決済キャンセル・失敗画面
+ * Related: fun-049
+ */
+import Layout from '../../layouts/Layout.astro';
+
+const pageTitle = '決済キャンセル';
+---
+
+<Layout title={pageTitle}>
+  <main class="container">
+    <div class="result-page result-page--cancel">
+      <div class="result-page__icon" aria-hidden="true">✕</div>
+      <h1 class="result-page__title">決済がキャンセルされました</h1>
+      <p class="result-page__message">
+        決済処理がキャンセルされました。再度お試しいただくか、料金プランページからご確認ください。
+      </p>
+      <div class="result-page__actions">
+        <a href="/pricing" class="result-page__button result-page__button--primary">
+          料金プランを見る
+        </a>
+        <a href="/" class="result-page__button result-page__button--secondary">
+          トップに戻る
+        </a>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .result-page {
+    text-align: center;
+    padding: 4rem 2rem;
+  }
+
+  .result-page__icon {
+    font-size: 4rem;
+    line-height: 1;
+    margin-bottom: 1.5rem;
+  }
+
+  .result-page--cancel .result-page__icon {
+    color: #ef4444;
+  }
+
+  .result-page__title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .result-page__message {
+    color: var(--color-text-secondary, #6b7280);
+    margin-bottom: 2rem;
+    font-size: 1.05rem;
+  }
+
+  .result-page__actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .result-page__button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  .result-page__button:hover {
+    opacity: 0.85;
+  }
+
+  .result-page__button--primary {
+    background-color: var(--color-primary, #6366f1);
+    color: #fff;
+  }
+
+  .result-page__button--secondary {
+    background-color: transparent;
+    color: var(--color-text, #374151);
+    border: 1px solid var(--color-border, #d1d5db);
+  }
+</style>

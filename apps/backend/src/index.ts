@@ -15,6 +15,8 @@ import loginGithub from './routes/auth/login-github';
 import callbackGithub from './routes/auth/callback-github';
 import me from './routes/auth/me';
 import logout from './routes/auth/logout';
+import billingCheckout from './routes/billing/checkout';
+import stripeWebhook from './routes/webhook/stripe';
 import { dbMiddleware } from './middleware/database';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { runDailyCollection } from './services/batch-collector';
@@ -43,6 +45,7 @@ app.use('/api/trends/*', rateLimitMiddleware(60 * 1000, 100));
 app.use('/api/repositories/*', rateLimitMiddleware(60 * 1000, 100));
 app.use('/api/languages', rateLimitMiddleware(60 * 1000, 100));
 app.use('/api/auth/*', rateLimitMiddleware(60 * 1000, 100));
+app.use('/api/billing/*', rateLimitMiddleware(60 * 1000, 100));
 
 // データベースミドルウェア
 app.use('/*', dbMiddleware);
@@ -59,6 +62,8 @@ app.route('/api/auth/login/github', loginGithub);
 app.route('/api/auth/callback/github', callbackGithub);
 app.route('/api/auth/me', me);
 app.route('/api/auth/logout', logout);
+app.route('/api/billing/checkout', billingCheckout);
+app.route('/api/webhook/stripe', stripeWebhook);
 app.route('/api/internal/batch/collect-daily', collectDaily);
 app.route('/api/internal/batch/calculate-metrics', calculateMetrics);
 app.route('/api/internal/batch/calculate-weekly', calculateWeekly);
