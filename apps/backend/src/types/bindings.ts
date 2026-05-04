@@ -3,6 +3,7 @@
  */
 export type Bindings = {
   DB: D1Database;
+  ENVIRONMENT?: string;
   ALLOWED_ORIGINS?: string;
   GITHUB_TOKEN: string;
   INTERNAL_API_TOKEN: string;

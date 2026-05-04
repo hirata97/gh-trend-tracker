@@ -8,13 +8,21 @@ import type { AppEnv } from '../types/app';
 export function registerMiddleware(app: Hono<AppEnv>): void {
   app.use('/*', loggingMiddleware);
 
-  // 本番環境: ALLOWED_ORIGINS環境変数を設定してオリジンを制限すること
   app.use('/*', async (c, next) => {
-    const allowedOrigins = c.env.ALLOWED_ORIGINS?.split(',') ?? [];
-    const corsMiddleware = cors({
-      origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
-      credentials: true,
-    });
+    const isProduction = c.env.ENVIRONMENT === 'production';
+    const allowedOrigins = c.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean) ?? [];
+
+    // 本番環境でALLOWED_ORIGINS未設定の場合はfail-closed（全オリジン拒否）
+    let origin: string | string[];
+    if (isProduction && allowedOrigins.length === 0) {
+      origin = [];
+    } else if (allowedOrigins.length > 0) {
+      origin = allowedOrigins;
+    } else {
+      origin = '*';
+    }
+
+    const corsMiddleware = cors({ origin, credentials: true });
     return corsMiddleware(c, next);
   });
 
