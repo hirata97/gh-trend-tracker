@@ -5,6 +5,7 @@
  */
 
 import { Hono } from 'hono';
+import { logger } from '../../utils/logger';
 import { authMiddleware } from '../../middleware/auth';
 import { findUserById } from '../../services/user-service';
 import type { AppEnv } from '../../types/app';
@@ -35,8 +36,13 @@ app.get('/', authMiddleware, async (c) => {
       plan: userInfo.plan,
     });
   } catch (error) {
-    console.error('Failed to get user info:', error);
-    return c.json({ error: 'Failed to get user info' }, 500);
+    const traceId = crypto.randomUUID();
+    logger.error('auth_me_fetch_failed', {
+      traceId,
+      userId: user.userId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    return c.json({ error: 'Failed to get user info', traceId }, 500);
   }
 });
 

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { logger } from '../utils/logger';
 import { eq, and } from 'drizzle-orm';
 import { rankingWeekly } from '../db/schema';
 import { WeeklyTrendsQuerySchema } from '../schemas/weekly';
@@ -81,8 +82,12 @@ trendsWeekly.get('/', async (c) => {
 
     return c.json(response);
   } catch (error) {
-    console.error('Error fetching weekly trends:', error);
-    const errorResponse: ApiError = dbError('Failed to fetch weekly trends');
+    const traceId = crypto.randomUUID();
+    logger.error('trends_weekly_fetch_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...dbError('Failed to fetch weekly trends'), traceId };
     return c.json(errorResponse, 500);
   }
 });

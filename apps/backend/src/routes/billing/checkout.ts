@@ -5,6 +5,7 @@
  */
 
 import { Hono } from 'hono';
+import { logger } from '../../utils/logger';
 import { authMiddleware } from '../../middleware/auth';
 import { createCheckoutSession } from '../../services/stripe';
 import type { AppEnv } from '../../types/app';
@@ -54,14 +55,14 @@ billingCheckout.post('/', authMiddleware, async (c) => {
 
     return c.json({ url: session.url, sessionId: session.sessionId });
   } catch (error) {
-    console.error('Stripe checkout error:', error);
-    return c.json(
-      {
-        error: 'Failed to create checkout session',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    const traceId = crypto.randomUUID();
+    logger.error('billing_checkout_failed', {
+      traceId,
+      userId: user.userId,
+      plan,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    return c.json({ error: 'Failed to create checkout session', traceId }, 500);
   }
 });
 

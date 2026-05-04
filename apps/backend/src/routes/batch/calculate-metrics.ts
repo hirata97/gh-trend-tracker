@@ -10,6 +10,7 @@ import type { AppEnv } from '../../types/app';
 import type { ApiError } from '@gh-trend-tracker/shared';
 import { internalAuthMiddleware } from '../../middleware/internal-auth';
 import { internalError } from '../../shared/errors';
+import { logger } from '../../utils/logger';
 import { runMetricsCalculation } from '../../services/metrics-calculator';
 
 const calculateMetrics = new Hono<AppEnv>();
@@ -24,8 +25,12 @@ calculateMetrics.post('/', async (c) => {
     const response = await runMetricsCalculation({ db });
     return c.json(response);
   } catch (error) {
-    console.error('メトリクス計算中の致命的エラー:', error);
-    const errorResponse: ApiError = internalError('Metrics calculation failed');
+    const traceId = crypto.randomUUID();
+    logger.error('batch_calculate_metrics_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...internalError('Metrics calculation failed'), traceId };
     return c.json(errorResponse, 500);
   }
 });

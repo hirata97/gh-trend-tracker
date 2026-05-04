@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { logger } from '../utils/logger';
 import { like, or, desc, sql } from 'drizzle-orm';
 import { repositories, repoSnapshots } from '../db/schema';
 import { SearchQuerySchema } from '../schemas/search';
@@ -68,8 +69,13 @@ repositoriesSearch.get('/', async (c) => {
 
     return c.json(response);
   } catch (error) {
-    console.error('Error searching repositories:', error);
-    const errorResponse: ApiError = dbError('Failed to search repositories');
+    const traceId = crypto.randomUUID();
+    logger.error('repositories_search_failed', {
+      traceId,
+      searchQuery,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...dbError('Failed to search repositories'), traceId };
     return c.json(errorResponse, 500);
   }
 });

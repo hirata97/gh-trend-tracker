@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getAllLanguages } from '../shared/queries';
 import { dbError } from '../shared/errors';
+import { logger } from '../utils/logger';
 import type { LanguagesResponse, ApiError } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
@@ -15,8 +16,12 @@ languages.get('/', async (c) => {
     const response: LanguagesResponse = { languages: languagesList };
     return c.json(response);
   } catch (error) {
-    console.error('Error fetching languages:', error);
-    const errorResponse: ApiError = dbError('Failed to fetch languages');
+    const traceId = crypto.randomUUID();
+    logger.error('languages_fetch_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...dbError('Failed to fetch languages'), traceId };
     return c.json(errorResponse, 500);
   }
 });

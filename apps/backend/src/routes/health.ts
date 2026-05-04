@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { logger } from '../utils/logger';
 import { sql } from 'drizzle-orm';
 import type { HealthResponse } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
@@ -23,7 +24,9 @@ health.get('/', async (c) => {
     };
     return c.json(response);
   } catch (error) {
-    console.error('Health check failed - database connection error:', error);
+    logger.error('health_check_db_failed', {
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
     const response: HealthResponse = {
       status: 'unhealthy',
       timestamp,

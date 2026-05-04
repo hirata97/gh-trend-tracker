@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { logger } from '../utils/logger';
 import { getRepositoryHistory, getRepositoryDetail } from '../shared/queries';
 import { DEFAULT_HISTORY_DAYS } from '../shared/constants';
 import { parsePositiveInt } from '../shared/utils';
@@ -33,8 +34,13 @@ repositories.get('/:repoId', async (c) => {
     const response: RepoDetailResponse = detail;
     return c.json(response);
   } catch (error) {
-    console.error('Error fetching repository detail:', error);
-    const errorResponse: ApiError = dbError('Failed to fetch repository detail');
+    const traceId = crypto.randomUUID();
+    logger.error('repository_detail_fetch_failed', {
+      traceId,
+      repoId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...dbError('Failed to fetch repository detail'), traceId };
     return c.json(errorResponse, 500);
   }
 });
@@ -63,8 +69,13 @@ repositories.get('/:repoId/history', async (c) => {
     const response: HistoryResponse = { history };
     return c.json(response);
   } catch (error) {
-    console.error('Error fetching history:', error);
-    const errorResponse: ApiError = dbError('Failed to fetch history');
+    const traceId = crypto.randomUUID();
+    logger.error('repository_history_fetch_failed', {
+      traceId,
+      repoId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...dbError('Failed to fetch history'), traceId };
     return c.json(errorResponse, 500);
   }
 });

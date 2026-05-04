@@ -10,6 +10,7 @@ import type { AppEnv } from '../../types/app';
 import type { ApiError } from '@gh-trend-tracker/shared';
 import { internalAuthMiddleware } from '../../middleware/internal-auth';
 import { internalError } from '../../shared/errors';
+import { logger } from '../../utils/logger';
 import { runWeeklyRankingCalculation } from '../../services/weekly-ranking-calculator';
 
 const calculateWeekly = new Hono<AppEnv>();
@@ -24,8 +25,12 @@ calculateWeekly.post('/', async (c) => {
     const response = await runWeeklyRankingCalculation({ db });
     return c.json(response);
   } catch (error) {
-    console.error('週別ランキング集計中の致命的エラー:', error);
-    const errorResponse: ApiError = internalError('Weekly ranking calculation failed');
+    const traceId = crypto.randomUUID();
+    logger.error('batch_calculate_weekly_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...internalError('Weekly ranking calculation failed'), traceId };
     return c.json(errorResponse, 500);
   }
 });
