@@ -101,7 +101,29 @@ jobs:
       - name: Build all workspaces
         run: npm run build
 
-  # Stage 5: Security audit
+  # Stage 5: OpenAPI validation
+  openapi-validate:
+    name: OpenAPI Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Validate OpenAPI spec
+        run: npx --yes @redocly/cli lint docs/openapi.yaml
+
+      - name: Check public spec is in sync
+        run: diff docs/openapi.yaml apps/backend/public/openapi.yaml
+
+  # Stage 6: Security audit
   security:
     name: Security Audit
     runs-on: ubuntu-latest

@@ -15,9 +15,11 @@ import me from './auth/me';
 import logout from './auth/logout';
 import billingCheckout from './billing/checkout';
 import stripeWebhook from './webhook/stripe';
+import docs from './docs';
 import type { AppEnv } from '../types/app';
 
 export function registerRoutes(app: Hono<AppEnv>): void {
+  app.route('/docs', docs);
   app.route('/health', health);
   app.route('/api/trends/daily', trendsDaily);
   app.route('/api/trends/weekly/available-weeks', trendsWeeklyAvailable);
