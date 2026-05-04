@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { logger } from '../utils/logger';
 import { sql } from 'drizzle-orm';
 import { rankingWeekly } from '../db/schema';
 import { dbError } from '../shared/errors';
@@ -33,8 +34,12 @@ trendsWeeklyAvailable.get('/', async (c) => {
 
     return c.json(response);
   } catch (error) {
-    console.error('Error fetching available weeks:', error);
-    const errorResponse: ApiError = dbError('Failed to fetch available weeks');
+    const traceId = crypto.randomUUID();
+    logger.error('trends_weekly_available_fetch_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...dbError('Failed to fetch available weeks'), traceId };
     return c.json(errorResponse, 500);
   }
 });

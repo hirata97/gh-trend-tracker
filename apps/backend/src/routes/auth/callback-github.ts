@@ -4,6 +4,7 @@
  */
 
 import { Hono } from 'hono';
+import { logger } from '../../utils/logger';
 import { exchangeCodeForToken, fetchGitHubUser } from '../../services/github-auth';
 import { generateJwt } from '../../services/jwt';
 import { upsertUser } from '../../services/user-service';
@@ -100,14 +101,12 @@ callbackGithub.get('/', async (c) => {
     const frontendUrl = c.env.FRONTEND_URL ?? 'http://localhost:4321';
     return c.redirect(`${frontendUrl}/`);
   } catch (error) {
-    console.error('GitHub OAuth callback error:', error);
-    return c.json(
-      {
-        error: 'Authentication failed',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    const traceId = crypto.randomUUID();
+    logger.error('auth_github_callback_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    return c.json({ error: 'Authentication failed', traceId }, 500);
   }
 });
 

@@ -5,6 +5,7 @@
  */
 
 import { Hono } from 'hono';
+import { logger } from '../../utils/logger';
 import { verifyWebhookSignature, activateUserPlan, deactivateUserPlan } from '../../services/stripe';
 import type { AppEnv } from '../../types/app';
 import type { PlanType } from '../../services/stripe';
@@ -59,7 +60,7 @@ stripeWebhook.post('/', async (c) => {
         const stripeCustomerId = session.customer;
 
         if (!userId || !plan || !stripeCustomerId) {
-          console.error('Webhook: missing metadata in checkout.session.completed', {
+          logger.error('webhook_checkout_missing_metadata', {
             userId,
             plan,
             stripeCustomerId,
@@ -68,7 +69,7 @@ stripeWebhook.post('/', async (c) => {
         }
 
         await activateUserPlan(db, userId, plan, stripeCustomerId);
-        console.log(`プラン有効化: userId=${userId}, plan=${plan}`);
+        logger.info('webhook_plan_activated', { userId, plan });
         break;
       }
 
@@ -78,12 +79,12 @@ stripeWebhook.post('/', async (c) => {
         const stripeCustomerId = subscription.customer;
 
         if (!stripeCustomerId) {
-          console.error('Webhook: missing customer in customer.subscription.deleted');
+          logger.error('webhook_subscription_missing_customer', {});
           break;
         }
 
         await deactivateUserPlan(db, stripeCustomerId);
-        console.log(`プラン無効化: stripeCustomerId=${stripeCustomerId}`);
+        logger.info('webhook_plan_deactivated', { stripeCustomerId });
         break;
       }
 
@@ -94,8 +95,12 @@ stripeWebhook.post('/', async (c) => {
 
     return c.json({ received: true });
   } catch (error) {
-    console.error('Webhook processing error:', error);
-    return c.json({ error: 'Webhook processing failed' }, 500);
+    const traceId = crypto.randomUUID();
+    logger.error('webhook_processing_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    return c.json({ error: 'Webhook processing failed', traceId }, 500);
   }
 });
 

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { logger } from '../utils/logger';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { repositories, metricsDaily, repoSnapshots } from '../db/schema';
 import { TrendsDailyQuerySchema } from '../schemas/trends';
@@ -136,8 +137,12 @@ trendsDaily.get('/', async (c) => {
 
     return c.json(response);
   } catch (error) {
-    console.error('Error fetching daily trends:', error);
-    const errorResponse: ApiError = dbError('Failed to fetch daily trends');
+    const traceId = crypto.randomUUID();
+    logger.error('trends_daily_fetch_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...dbError('Failed to fetch daily trends'), traceId };
     return c.json(errorResponse, 500);
   }
 });

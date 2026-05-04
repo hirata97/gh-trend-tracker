@@ -13,6 +13,7 @@ import type { AppEnv } from '../../types/app';
 import type { ApiError } from '@gh-trend-tracker/shared';
 import { internalAuthMiddleware } from '../../middleware/internal-auth';
 import { internalError } from '../../shared/errors';
+import { logger } from '../../utils/logger';
 import { runDailyCollection } from '../../services/batch-collector';
 
 /** HTTPリクエスト経由のデフォルト処理件数（タイムアウト対策） */
@@ -28,7 +29,9 @@ collectDaily.post('/', async (c) => {
   const githubToken = c.env.GITHUB_TOKEN;
 
   if (!githubToken) {
-    console.error('GITHUB_TOKEN環境変数が設定されていません');
+    logger.error('batch_collect_daily_missing_token', {
+      errorMessage: 'GITHUB_TOKEN環境変数が設定されていません',
+    });
     const errorResponse: ApiError = internalError('GitHub token not configured');
     return c.json(errorResponse, 500);
   }
@@ -41,8 +44,12 @@ collectDaily.post('/', async (c) => {
     const response = await runDailyCollection({ db, githubToken, limit });
     return c.json(response);
   } catch (error) {
-    console.error('バッチ処理中の致命的エラー:', error);
-    const errorResponse: ApiError = internalError('Batch collection failed');
+    const traceId = crypto.randomUUID();
+    logger.error('batch_collect_daily_failed', {
+      traceId,
+      errorMessage: error instanceof Error ? error.message : 'unknown',
+    });
+    const errorResponse: ApiError = { ...internalError('Batch collection failed'), traceId };
     return c.json(errorResponse, 500);
   }
 });
