@@ -1,0 +1,883 @@
+openapi: 3.1.0
+info:
+  title: GitHub Trend Tracker API
+  version: 1.0.0
+  description: |
+    GitHubリポジトリのトレンドを定量指標として抽出・可視化するAPIサービス。
+    日次トレンドランキング、リポジトリ詳細、言語一覧などを提供します。
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: https://api.gh-trend-tracker.workers.dev
+    description: 本番環境
+
+tags:
+  - name: system
+    description: システム管理
+  - name: trends
+    description: トレンドランキング
+  - name: repositories
+    description: リポジトリ情報
+  - name: languages
+    description: 言語一覧
+  - name: auth
+    description: 認証（Phase 3）
+  - name: billing
+    description: 課金（Phase 3）
+  - name: batch
+    description: バッチ処理（内部API）
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: ヘルスチェック
+      description: APIとデータベース接続の正常性を確認します。
+      tags: [system]
+      security: []
+      responses:
+        '200':
+          description: 正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '503':
+          description: データベース接続エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/trends/daily:
+    get:
+      operationId: getTrendsDaily
+      summary: 日次トレンドランキング一覧取得
+      description: |
+        指定された言語、ソート基準、ページ番号に基づいて、
+        リポジトリの日次トレンドランキング一覧（最大100件）を取得します。
+      tags: [trends]
+      security: []
+      parameters:
+        - name: language
+          in: query
+          required: false
+          description: フィルタリング対象の言語コード
+          schema:
+            type: string
+            example: TypeScript
+        - name: sort_by
+          in: query
+          required: true
+          description: ソート基準
+          schema:
+            type: string
+            enum: [7d_increase, 30d_increase, 7d_rate, 30d_rate, total_stars]
+            example: 7d_increase
+        - name: page
+          in: query
+          required: false
+          description: "ページ番号（デフォルト: 1）"
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: limit
+          in: query
+          required: false
+          description: "取得件数（デフォルト: 20、最大: 100）"
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+      responses:
+        '200':
+          description: トレンドランキング一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendsDailyResponse'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/trends/weekly:
+    get:
+      operationId: getTrendsWeekly
+      summary: 週別トレンドランキング取得
+      description: 指定された年、週番号、言語に基づき、週別集計ランキングデータを取得します。
+      tags: [trends]
+      security: []
+      parameters:
+        - name: year
+          in: query
+          required: true
+          description: ISO年
+          schema:
+            type: integer
+            example: 2026
+        - name: week
+          in: query
+          required: true
+          description: ISO週番号（1-53）
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 53
+            example: 5
+        - name: language
+          in: query
+          required: false
+          description: 言語フィルタ
+          schema:
+            type: string
+            example: TypeScript
+      responses:
+        '200':
+          description: 週別トレンドランキング
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendsWeeklyResponse'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/trends/weekly/available-weeks:
+    get:
+      operationId: getAvailableWeeks
+      summary: 閲覧可能な過去週リスト取得
+      description: データが存在する過去の週（年とISO週番号）の一覧を取得します。
+      tags: [trends]
+      security: []
+      responses:
+        '200':
+          description: 利用可能な週一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WeekEntry'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/repositories/search:
+    get:
+      operationId: searchRepositories
+      summary: リポジトリ名検索
+      description: 検索クエリ文字列に基づき、リポジトリ名（フルネームまたは部分一致）を検索します。
+      tags: [repositories]
+      security: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: 検索クエリ（リポジトリ名の一部）
+          schema:
+            type: string
+            example: react
+        - name: limit
+          in: query
+          required: false
+          description: "最大返却件数（デフォルト: 50）"
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+            example: 50
+      responses:
+        '200':
+          description: 検索結果一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RepositorySearchItem'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/repositories/{repoId}:
+    get:
+      operationId: getRepository
+      summary: リポジトリ詳細情報取得
+      description: 特定のリポジトリIDに基づき、基本情報とトピックスを取得します。
+      tags: [repositories]
+      security: []
+      parameters:
+        - name: repoId
+          in: path
+          required: true
+          description: リポジトリ内部ID（GitHubリポジトリID）
+          schema:
+            type: integer
+            example: 10270250
+      responses:
+        '200':
+          description: リポジトリ詳細
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepositoryDetail'
+        '404':
+          description: リポジトリが見つかりません
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/repositories/{repoId}/history:
+    get:
+      operationId: getRepositoryHistory
+      summary: リポジトリ90日間スター推移取得
+      description: 特定のリポジトリの過去90日間の日次スター数スナップショットデータを取得します。
+      tags: [repositories]
+      security: []
+      parameters:
+        - name: repoId
+          in: path
+          required: true
+          description: リポジトリ内部ID（GitHubリポジトリID）
+          schema:
+            type: integer
+            example: 10270250
+      responses:
+        '200':
+          description: スター推移データ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StarHistoryEntry'
+        '404':
+          description: リポジトリが見つかりません
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/languages:
+    get:
+      operationId: getLanguages
+      summary: 言語一覧取得
+      description: 利用可能な言語の一覧を取得します。言語フィルタリングUIの選択肢として使用されます。
+      tags: [languages]
+      security: []
+      responses:
+        '200':
+          description: 言語一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Language'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/auth/callback/github:
+    get:
+      operationId: authCallbackGitHub
+      summary: GitHub OAuth認証コールバック処理
+      description: |
+        GitHubからの認証コードを受け取り、トークン交換、ユーザー情報取得、
+        DB登録/ログイン処理、JWT生成を行います。（Phase 3）
+      tags: [auth]
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: GitHub認証コード
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          description: CSRFトークン
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 認証処理中（ブラウザは302リダイレクトで受け取ります）
+        '302':
+          description: 認証成功。メイン画面へリダイレクト、JWTセッションをCookie設定
+        '400':
+          description: 無効な認証コードまたはState
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/repositories/{repoId}/summary:
+    get:
+      operationId: getRepositorySummary
+      summary: リポジトリAI要約取得
+      description: |
+        指定されたリポジトリのAI要約データを取得します。
+        ユーザーのログイン状態と課金プランに応じて、全文またはプレビューを返します。（Phase 3）
+      tags: [repositories]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: repoId
+          in: path
+          required: true
+          description: リポジトリ内部ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: AI要約データ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryResponse'
+        '401':
+          description: 認証が必要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/repositories/{repoId}/summary/generate:
+    post:
+      operationId: generateRepositorySummary
+      summary: AI要約オンデマンド生成要求
+      description: |
+        課金ユーザーが未生成のリポジトリに対してAI要約の生成を要求します。（Phase 3）
+      tags: [repositories]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: repoId
+          in: path
+          required: true
+          description: リポジトリ内部ID
+          schema:
+            type: integer
+      responses:
+        '202':
+          description: 生成要求を受け付け、非同期処理を開始
+        '401':
+          description: 認証が必要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: 課金プラン外またはクレジット/制限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/billing/checkout:
+    post:
+      operationId: createCheckoutSession
+      summary: Stripe Checkoutセッション生成
+      description: |
+        ユーザーが選択した課金プランに基づき、Stripe Checkoutセッションを生成し、
+        決済用URLを返します。（Phase 3）
+      tags: [billing]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '200':
+          description: Checkout URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResponse'
+        '401':
+          description: 認証が必要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/webhook/stripe:
+    post:
+      operationId: handleStripeWebhook
+      summary: Stripe Webhook決済イベント処理
+      description: |
+        Stripeからの決済成功/失敗イベントを受信し、ユーザーの課金プランや
+        クレジット情報をDBに反映します。（Phase 3）
+      tags: [billing]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Stripeイベントペイロード
+      responses:
+        '200':
+          description: イベント処理成功
+        '400':
+          description: 無効な署名またはペイロード
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/internal/batch/collect-daily:
+    post:
+      operationId: batchCollectDaily
+      summary: 日次データ収集＆スナップショット保存
+      description: |
+        追跡対象リポジトリの最新情報をGitHub APIから取得し、
+        マスタ情報とスナップショットを保存します。GitHub Actions専用。
+      tags: [batch]
+      security:
+        - internalAuth: []
+      responses:
+        '200':
+          description: 収集成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResult'
+        '401':
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/internal/batch/calculate-metrics:
+    post:
+      operationId: batchCalculateMetrics
+      summary: 7日間/30日間スター増加率計算
+      description: |
+        日次スナップショットデータに基づき、リポジトリごとの過去7日間および
+        30日間のスター増加数/増加率を計算し保存します。GitHub Actions専用。
+      tags: [batch]
+      security:
+        - internalAuth: []
+      responses:
+        '200':
+          description: 計算成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResult'
+        '401':
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/internal/batch/calculate-weekly:
+    post:
+      operationId: batchCalculateWeekly
+      summary: 週別トレンド集計とランキング保存
+      description: |
+        週の変わり目に実行され、過去7日間のスター増加数に基づき
+        週別トレンドランキングを計算・保存します。GitHub Actions専用。
+      tags: [batch]
+      security:
+        - internalAuth: []
+      responses:
+        '200':
+          description: 集計成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResult'
+        '401':
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalAuth:
+      type: apiKey
+      in: header
+      name: X-Internal-Token
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok, unhealthy]
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-05-04T10:30:00.000Z'
+        database:
+          type: string
+          enum: [connected, disconnected]
+          example: connected
+        dbLatency_ms:
+          type: integer
+          description: DBレスポンス時間（ms）
+          example: 5
+
+    TrendsDailyItem:
+      type: object
+      required: [id, full_name, stargazers_count, stars_7d_increase, stars_30d_increase, stars_7d_rate, stars_30d_rate]
+      properties:
+        id:
+          type: string
+          description: リポジトリID（文字列）
+          example: '10270250'
+        full_name:
+          type: string
+          example: facebook/react
+        description:
+          type: [string, 'null']
+          example: A JavaScript library for building user interfaces
+        language:
+          type: [string, 'null']
+          example: JavaScript
+        stargazers_count:
+          type: integer
+          example: 230000
+        forks_count:
+          type: integer
+          example: 47000
+        stars_7d_increase:
+          type: integer
+          example: 500
+        stars_30d_increase:
+          type: integer
+          example: 1200
+        stars_7d_rate:
+          type: number
+          format: float
+          example: 0.042
+        stars_30d_rate:
+          type: number
+          format: float
+          example: 0.11
+
+    Pagination:
+      type: object
+      required: [page, limit, total, totalPages]
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 450
+        totalPages:
+          type: integer
+          example: 23
+
+    TrendsDailyResponse:
+      type: object
+      required: [data, pagination, metadata]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrendsDailyItem'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        metadata:
+          type: object
+          required: [snapshot_date]
+          properties:
+            snapshot_date:
+              type: string
+              format: date
+              example: '2026-05-04'
+
+    TrendsWeeklyItem:
+      type: object
+      properties:
+        repo_id:
+          type: string
+          example: '10270250'
+        full_name:
+          type: string
+          example: facebook/react
+        increase:
+          type: integer
+          example: 500
+
+    TrendsWeeklyResponse:
+      type: object
+      properties:
+        metadata:
+          type: object
+          properties:
+            year:
+              type: integer
+              example: 2026
+            week:
+              type: integer
+              example: 5
+            language:
+              type: string
+              example: all
+        ranking:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrendsWeeklyItem'
+
+    WeekEntry:
+      type: object
+      required: [year, week]
+      properties:
+        year:
+          type: integer
+          example: 2026
+        week:
+          type: integer
+          example: 5
+
+    RepositoryDetail:
+      type: object
+      required: [id, repo_id, full_name, html_url, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          example: 1
+        repo_id:
+          type: integer
+          example: 10270250
+        full_name:
+          type: string
+          example: facebook/react
+        description:
+          type: [string, 'null']
+          example: A JavaScript library for building user interfaces
+        language:
+          type: [string, 'null']
+          example: JavaScript
+        topics:
+          type: array
+          items:
+            type: string
+          example: [react, javascript, ui]
+        html_url:
+          type: string
+          format: uri
+          example: https://github.com/facebook/react
+        created_at:
+          type: string
+          format: date-time
+          example: '2013-05-24T16:15:54Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-05-04T10:30:00Z'
+
+    RepositorySearchItem:
+      type: object
+      required: [id, full_name]
+      properties:
+        id:
+          type: string
+          example: '10270250'
+        full_name:
+          type: string
+          example: facebook/react
+        description:
+          type: [string, 'null']
+          example: A JavaScript library for building user interfaces
+
+    StarHistoryEntry:
+      type: object
+      required: [snapshot_date, stars]
+      properties:
+        snapshot_date:
+          type: string
+          format: date
+          example: '2026-05-04'
+        stars:
+          type: integer
+          example: 230000
+
+    Language:
+      type: object
+      required: [code, name_ja, sort_order]
+      properties:
+        code:
+          type: string
+          example: TypeScript
+        name_ja:
+          type: string
+          example: TypeScript
+        sort_order:
+          type: integer
+          example: 1
+
+    SummaryResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [FULL, PREVIEW, NOT_GENERATED]
+          example: FULL
+        summary_data:
+          type: [object, 'null']
+          description: AI要約データ（statusがFULLまたはPREVIEWの場合）
+
+    CheckoutRequest:
+      type: object
+      required: [plan_id, redirect_url]
+      properties:
+        plan_id:
+          type: string
+          description: StripeプライスID
+          example: price_xxx
+        redirect_url:
+          type: string
+          format: uri
+          example: https://example.com/success
+
+    CheckoutResponse:
+      type: object
+      required: [checkout_url]
+      properties:
+        checkout_url:
+          type: string
+          format: uri
+          example: https://checkout.stripe.com/pay/cs_xxx
+
+    BatchResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Collected 150 repositories
+        processed:
+          type: integer
+          example: 150
+
+    ApiError:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Invalid query parameter
+        traceId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
