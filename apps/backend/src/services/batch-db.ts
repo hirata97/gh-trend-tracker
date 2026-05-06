@@ -106,21 +106,21 @@ export async function calculateAndUpsertMetrics(
   const sevenDaysAgoStr = getDaysAgoDate(todayDate, 7);
   const thirtyDaysAgoStr = getDaysAgoDate(todayDate, 30);
 
-  // 7日前のスナップショット
-  const snap7dRows = await db
-    .select({ stars: repoSnapshots.stars })
-    .from(repoSnapshots)
-    .where(and(eq(repoSnapshots.repoId, repoId), eq(repoSnapshots.snapshotDate, sevenDaysAgoStr)))
-    .limit(1);
-
-  // 30日前のスナップショット
-  const snap30dRows = await db
-    .select({ stars: repoSnapshots.stars })
-    .from(repoSnapshots)
-    .where(
-      and(eq(repoSnapshots.repoId, repoId), eq(repoSnapshots.snapshotDate, thirtyDaysAgoStr))
-    )
-    .limit(1);
+  // 7日前と30日前のスナップショットを並列取得（相互依存なし）
+  const [snap7dRows, snap30dRows] = await Promise.all([
+    db
+      .select({ stars: repoSnapshots.stars })
+      .from(repoSnapshots)
+      .where(and(eq(repoSnapshots.repoId, repoId), eq(repoSnapshots.snapshotDate, sevenDaysAgoStr)))
+      .limit(1),
+    db
+      .select({ stars: repoSnapshots.stars })
+      .from(repoSnapshots)
+      .where(
+        and(eq(repoSnapshots.repoId, repoId), eq(repoSnapshots.snapshotDate, thirtyDaysAgoStr))
+      )
+      .limit(1),
+  ]);
 
   const snap7d = snap7dRows[0] ?? null;
   const snap30d = snap30dRows[0] ?? null;
