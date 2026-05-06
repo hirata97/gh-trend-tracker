@@ -3,7 +3,7 @@
  * HTTPエンドポイントとCronトリガーの両方から呼び出される
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq, and, between, lte, desc } from 'drizzle-orm';
+import { eq, and, between, lte, lt, desc } from 'drizzle-orm';
 import type { BatchWeeklyRankingResponse, WeeklyRankEntry } from '@gh-trend-tracker/shared';
 import { repositories, repoSnapshots, rankingWeekly } from '../db/schema';
 
@@ -91,14 +91,15 @@ export async function runWeeklyRankingCalculation(
   }> = [];
 
   for (const repo of reposWithSnapshots) {
-    // 週開始日以前の最新スナップショット（開始時点のスター数）
+    // 週開始日より前の最新スナップショット（開始時点のスター数）
+    // NOTE: 週開始日当日のスナップショットを含めると、月曜の増加分が差分から漏れるため除外する
     const startSnap = await db
       .select({ stars: repoSnapshots.stars })
       .from(repoSnapshots)
       .where(
         and(
           eq(repoSnapshots.repoId, repo.repoId),
-          lte(repoSnapshots.snapshotDate, startDate)
+          lt(repoSnapshots.snapshotDate, startDate)
         )
       )
       .orderBy(desc(repoSnapshots.snapshotDate))

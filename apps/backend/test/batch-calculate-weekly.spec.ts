@@ -186,7 +186,7 @@ describe('POST /api/internal/batch/calculate-weekly', () => {
 
   describe('週別ランキング集計', () => {
     // テスト用に前の週の月曜〜日曜のスナップショットデータを用意する
-    function getLastWeekDates(): { monday: string; sunday: string } {
+    function getLastWeekDates(): { previousSunday: string; monday: string; sunday: string } {
       const now = new Date();
       const lastWeek = new Date(now);
       lastWeek.setUTCDate(lastWeek.getUTCDate() - 7);
@@ -196,7 +196,10 @@ describe('POST /api/internal/batch/calculate-weekly', () => {
       monday.setUTCDate(lastWeek.getUTCDate() - dayOfWeek + 1);
       const sunday = new Date(monday);
       sunday.setUTCDate(monday.getUTCDate() + 6);
+      const previousSunday = new Date(monday);
+      previousSunday.setUTCDate(monday.getUTCDate() - 1);
       return {
+        previousSunday: previousSunday.toISOString().split('T')[0],
         monday: monday.toISOString().split('T')[0],
         sunday: sunday.toISOString().split('T')[0],
       };
@@ -204,12 +207,14 @@ describe('POST /api/internal/batch/calculate-weekly', () => {
 
     it('全言語のランキングが生成されること', async () => {
       const db = env.DB as D1Database;
-      const { monday, sunday } = getLastWeekDates();
+      const { previousSunday, monday, sunday } = getLastWeekDates();
 
       await insertRepo(db, 100, 'repo-a', 'TypeScript');
       await insertRepo(db, 101, 'repo-b', 'Python');
+      await insertSnapshot(db, 100, previousSunday, 1000);
       await insertSnapshot(db, 100, monday, 1000);
       await insertSnapshot(db, 100, sunday, 1500);
+      await insertSnapshot(db, 101, previousSunday, 2000);
       await insertSnapshot(db, 101, monday, 2000);
       await insertSnapshot(db, 101, sunday, 2300);
 
@@ -254,12 +259,14 @@ describe('POST /api/internal/batch/calculate-weekly', () => {
 
     it('言語別ランキングが正しく分離されること', async () => {
       const db = env.DB as D1Database;
-      const { monday, sunday } = getLastWeekDates();
+      const { previousSunday, monday, sunday } = getLastWeekDates();
 
       await insertRepo(db, 200, 'ts-repo', 'TypeScript');
       await insertRepo(db, 201, 'py-repo', 'Python');
+      await insertSnapshot(db, 200, previousSunday, 100);
       await insertSnapshot(db, 200, monday, 100);
       await insertSnapshot(db, 200, sunday, 300);
+      await insertSnapshot(db, 201, previousSunday, 500);
       await insertSnapshot(db, 201, monday, 500);
       await insertSnapshot(db, 201, sunday, 600);
 
