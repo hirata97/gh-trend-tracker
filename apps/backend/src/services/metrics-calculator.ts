@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 import type { BatchMetricsResponse } from '@gh-trend-tracker/shared';
 import { getTodayISO } from '../shared/utils';
 import { repositories, repoSnapshots } from '../db/schema';
-import { calculateAndUpsertMetrics } from './batch-db';
+import { calculateAndUpsertMetricsBatch } from './batch-db';
 
 export interface MetricsCalculateOptions {
   db: DrizzleD1Database;
@@ -24,14 +24,14 @@ export async function runMetricsCalculation(
   const startTime = Date.now();
   const todayDate = getTodayISO();
 
-  // 本日のスナップショットがあるリポジトリIDを取得
-  const repoRows = await db
-    .select({ repoId: repoSnapshots.repoId })
+  // 本日のスナップショットがあるリポジトリID・スター数を一括取得（初回クエリでstarsも取得し後続クエリを削減）
+  const todaySnaps = await db
+    .select({ repoId: repoSnapshots.repoId, stars: repoSnapshots.stars })
     .from(repoSnapshots)
     .innerJoin(repositories, eq(repoSnapshots.repoId, repositories.repoId))
     .where(eq(repoSnapshots.snapshotDate, todayDate));
 
-  if (repoRows.length === 0) {
+  if (todaySnaps.length === 0) {
     return {
       message: 'No repositories with snapshots for today',
       summary: {
@@ -49,22 +49,22 @@ export async function runMetricsCalculation(
   const skipped = 0;
   let errors = 0;
 
-  for (const row of repoRows) {
-    try {
-      await calculateAndUpsertMetrics(db, row.repoId, todayDate);
-      success++;
-    } catch (error) {
-      errors++;
-      console.error(
-        `メトリクス計算エラー: repoId=${row.repoId} - ${error instanceof Error ? error.message : error}`
-      );
-    }
+  try {
+    // JOINバッチ化でN+1クエリ問題を解消（O(5N)クエリ → O(N/16+4)クエリ）
+    await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
+    success = todaySnaps.length;
+  } catch (error) {
+    errors = todaySnaps.length;
+    console.error(
+      `バッチメトリクス計算エラー: ${error instanceof Error ? error.message : error}`,
+      error instanceof Error ? error.stack : undefined
+    );
   }
 
   return {
     message: 'Metrics calculation completed',
     summary: {
-      total: repoRows.length,
+      total: todaySnaps.length,
       success,
       skipped,
       errors,
