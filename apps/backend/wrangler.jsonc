@@ -2,13 +2,21 @@
  * Cloudflare Workers設定
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  *
- * CORS設定:
- * 本番環境では環境変数 ALLOWED_ORIGINS を設定してください。
- * カンマ区切りで複数のオリジンを指定可能です。
- * 例: npx wrangler secret put ALLOWED_ORIGINS
- *     値: https://example.com,https://app.example.com
+ * 環境構成:
+ *   development: ローカル開発用。開発D1（gh-trends-db-dev）を使用。
+ *                `wrangler dev --env development` で起動。
+ *   production:  本番環境。本番D1（gh-trends-db）を使用。
+ *                `wrangler deploy --env production` でデプロイ。
  *
- * 未設定の場合は全オリジンを許可します（開発用）。
+ * 初回セットアップ:
+ *   開発用D1を作成してから database_id を env.development に記入してください:
+ *   $ npx wrangler d1 create gh-trends-db-dev
+ *
+ * CORS設定:
+ *   本番環境では環境変数 ALLOWED_ORIGINS を設定してください。
+ *   カンマ区切りで複数のオリジンを指定可能です。
+ *   例: npx wrangler secret put ALLOWED_ORIGINS --env production
+ *       値: https://example.com,https://app.example.com
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -22,20 +30,43 @@
   "observability": {
     "enabled": true,
   },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "gh-trends-db",
-      "database_id": "a9fae3bf-ae66-43af-b167-d329c9e7154d",
+  "env": {
+    "development": {
+      /**
+       * 開発用D1データベース
+       * 初回セットアップ時に以下のコマンドを実行し、
+       * 出力された database_id をここに記入してください:
+       * $ npx wrangler d1 create gh-trends-db-dev
+       */
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "gh-trends-db-dev",
+          "database_id": "REPLACE_WITH_DEV_D1_DATABASE_ID",
+          // Drizzle Kit で生成したマイグレーションファイルの格納ディレクトリ
+          "migrations_dir": "migrations",
+        },
+      ],
     },
-  ],
-  /**
-   * Cron Trigger設定
-   * - 毎日 UTC 0:00: 日次データ収集バッチを実行
-   * - 毎日 UTC 0:30: メトリクス計算バッチを実行（日次収集後）
-   * - 毎週月曜 UTC 1:00: 週別トレンドランキング集計を実行
-   */
-  "triggers": {
-    "crons": ["0 0 * * *", "30 0 * * *", "0 1 * * 1"],
+    "production": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "gh-trends-db",
+          "database_id": "a9fae3bf-ae66-43af-b167-d329c9e7154d",
+          // Drizzle Kit で生成したマイグレーションファイルの格納ディレクトリ
+          "migrations_dir": "migrations",
+        },
+      ],
+      /**
+       * Cron Trigger設定（本番のみ）
+       * - 毎日 UTC 0:00: 日次データ収集バッチを実行
+       * - 毎日 UTC 0:30: メトリクス計算バッチを実行（日次収集後）
+       * - 毎週月曜 UTC 1:00: 週別トレンドランキング集計を実行
+       */
+      "triggers": {
+        "crons": ["0 0 * * *", "30 0 * * *", "0 1 * * 1"],
+      },
+    },
   },
 }
