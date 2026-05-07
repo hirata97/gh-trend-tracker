@@ -3,6 +3,7 @@
  * リポジトリメタデータの更新、スナップショットの挿入、メトリクス計算
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { eq, and } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { repositories, repoSnapshots, metricsDaily } from '../db/schema';
@@ -226,12 +227,13 @@ export async function calculateAndUpsertMetricsBatch(
   });
 
   // composite PKのonConflictDoUpdateはD1非対応のためDELETE+INSERT
-  // calculated_date単一条件で対象日の全メトリクスを一括削除（1パラメータ）
-  await db.delete(metricsDaily).where(eq(metricsDaily.calculatedDate, todayDate));
-
-  // D1パラメータ上限(100): 6列×16行=96パラメータ以内でチャンク分割INSERT
-  const INSERT_CHUNK_SIZE = Math.floor(100 / 6); // = 16
-  for (let i = 0; i < metricsValues.length; i += INSERT_CHUNK_SIZE) {
-    await db.insert(metricsDaily).values(metricsValues.slice(i, i + INSERT_CHUNK_SIZE));
-  }
+  // db.batch()でDELETE+INSERTを原子的に実行（BEGIN/COMMITはテスト環境非対応のためbatch使用）
+  const INSERT_CHUNK_SIZE = Math.floor(100 / 6); // D1パラメータ上限(100): 6列×16行=96パラメータ以内
+  const deleteQuery = db.delete(metricsDaily).where(eq(metricsDaily.calculatedDate, todayDate));
+  const insertQueries = Array.from(
+    { length: Math.ceil(metricsValues.length / INSERT_CHUNK_SIZE) },
+    (_, i) => db.insert(metricsDaily).values(metricsValues.slice(i * INSERT_CHUNK_SIZE, (i + 1) * INSERT_CHUNK_SIZE))
+  );
+  const batchItems = [deleteQuery, ...insertQueries] as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]];
+  await db.batch(batchItems);
 }
