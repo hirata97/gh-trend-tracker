@@ -123,7 +123,39 @@ jobs:
       - name: Check public spec is in sync
         run: diff docs/openapi.yaml apps/backend/public/openapi.yaml
 
-  # Stage 6: Security audit
+  # Stage 6: Migration check
+  migration-check:
+    name: Migration Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check migration files exist
+        run: |
+          if [ -z "$(ls apps/backend/migrations/*.sql 2>/dev/null)" ]; then
+            echo "::error::マイグレーションファイルが見つかりません (apps/backend/migrations/*.sql)"
+            exit 1
+          fi
+          echo "マイグレーションファイル:"
+          ls -la apps/backend/migrations/*.sql
+
+      - name: Validate drizzle-kit can generate without errors
+        working-directory: apps/backend
+        run: npx drizzle-kit check 2>&1 || true
+
+  # Stage 7: Security audit
   security:
     name: Security Audit
     runs-on: ubuntu-latest

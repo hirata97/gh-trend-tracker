@@ -43,6 +43,8 @@
           "binding": "DB",
           "database_name": "gh-trends-db-dev",
           "database_id": "REPLACE_WITH_DEV_D1_DATABASE_ID",
+          // Drizzle Kit で生成したマイグレーションファイルの格納ディレクトリ
+          "migrations_dir": "migrations",
         },
       ],
     },
@@ -52,6 +54,8 @@
           "binding": "DB",
           "database_name": "gh-trends-db",
           "database_id": "a9fae3bf-ae66-43af-b167-d329c9e7154d",
+          // Drizzle Kit で生成したマイグレーションファイルの格納ディレクトリ
+          "migrations_dir": "migrations",
         },
       ],
       /**

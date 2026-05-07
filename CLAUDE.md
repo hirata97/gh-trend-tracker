@@ -47,8 +47,10 @@ gh-trend-tracker/
 │   │   ├── src/
 │   │   │   ├── routes/         # エンドポイント定義
 │   │   │   ├── shared/         # Backend内共通コード
-│   │   │   └── db/schema.ts    # Drizzle ORM スキーマ
-│   │   └── schema/schema.sql   # D1 SQLスキーマ
+│   │   │   └── db/schema.ts    # Drizzle ORM スキーマ（Single source of truth）
+│   │   ├── migrations/         # Drizzle Kit 生成マイグレーションファイル（編集不要）
+│   │   ├── drizzle.config.ts   # Drizzle Kit 設定
+│   │   └── schema/schema.sql   # 過去互換リファレンス（⛔ 直接編集禁止）
 │   │
 │   └── frontend/               # Astro フロントエンド
 │       └── src/
@@ -153,7 +155,8 @@ cd apps/backend && npm run collect
 
 ### 必須チェック項目
 
-- ✅ **スキーマ同期**: `apps/backend/src/db/schema.ts`と`apps/backend/schema/schema.sql`は常に同期を保つこと
+- ⛔ **schema.sql編集禁止**: `apps/backend/schema/schema.sql` の直接編集は禁止。スキーマ変更は `src/db/schema.ts` を編集し、`npm run db:generate` でマイグレーションファイルを生成すること
+- ✅ **マイグレーション管理**: DBスキーマ変更は `schema.ts` → `npm run db:generate` → `migrations/NNNN_*.sql` → `npm run db:migrate:dev` の手順で行うこと
 - ✅ **未使用変数**: アンダースコアプレフィックス（`_var`）で回避せず、根本的に解決すること
 - ✅ **コメント言語**: コード内のコメントは日本語で記述すること
 - ✅ **共有型**: Backend/Frontend間で共有する型は`shared/src/index.ts`に定義すること
