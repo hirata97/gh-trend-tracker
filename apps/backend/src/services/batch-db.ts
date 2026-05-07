@@ -178,31 +178,31 @@ export async function calculateAndUpsertMetricsBatch(
   const snap7dAlias = alias(repoSnapshots, 'snap_7d');
   const snap30dAlias = alias(repoSnapshots, 'snap_30d');
 
-  // 7日前のスナップショットをJOINで一括取得（INパラメータ上限を回避: 2パラメータのみ）
-  const snap7dRows = await db
-    .select({ repoId: snap7dAlias.repoId, stars: snap7dAlias.stars })
-    .from(snapToday)
-    .innerJoin(
-      snap7dAlias,
-      and(
-        eq(snap7dAlias.repoId, snapToday.repoId),
-        eq(snap7dAlias.snapshotDate, sevenDaysAgoStr)
+  // 7日前・30日前のスナップショットを並列取得（相互依存なし、1ラウンドトリップ削減）
+  const [snap7dRows, snap30dRows] = await Promise.all([
+    db
+      .select({ repoId: snap7dAlias.repoId, stars: snap7dAlias.stars })
+      .from(snapToday)
+      .innerJoin(
+        snap7dAlias,
+        and(
+          eq(snap7dAlias.repoId, snapToday.repoId),
+          eq(snap7dAlias.snapshotDate, sevenDaysAgoStr)
+        )
       )
-    )
-    .where(eq(snapToday.snapshotDate, todayDate));
-
-  // 30日前のスナップショットをJOINで一括取得（2パラメータのみ）
-  const snap30dRows = await db
-    .select({ repoId: snap30dAlias.repoId, stars: snap30dAlias.stars })
-    .from(snapToday)
-    .innerJoin(
-      snap30dAlias,
-      and(
-        eq(snap30dAlias.repoId, snapToday.repoId),
-        eq(snap30dAlias.snapshotDate, thirtyDaysAgoStr)
+      .where(eq(snapToday.snapshotDate, todayDate)),
+    db
+      .select({ repoId: snap30dAlias.repoId, stars: snap30dAlias.stars })
+      .from(snapToday)
+      .innerJoin(
+        snap30dAlias,
+        and(
+          eq(snap30dAlias.repoId, snapToday.repoId),
+          eq(snap30dAlias.snapshotDate, thirtyDaysAgoStr)
+        )
       )
-    )
-    .where(eq(snapToday.snapshotDate, todayDate));
+      .where(eq(snapToday.snapshotDate, todayDate)),
+  ]);
 
   const snap7dMap = new Map(snap7dRows.map((r) => [r.repoId, r.stars]));
   const snap30dMap = new Map(snap30dRows.map((r) => [r.repoId, r.stars]));
