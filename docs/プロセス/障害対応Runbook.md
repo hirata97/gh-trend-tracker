@@ -170,16 +170,14 @@ npx wrangler d1 execute gh-trends-db \
 # 1. Cloudflare ダッシュボードで復元ポイントを確認
 # https://dash.cloudflare.com/ → D1 → gh-trends-db → Time Travel
 
-# 2. CLIで復元（<BOOKMARK_OR_TIMESTAMP> を実際の値に置換）
+# 2. CLIで復元（<TIMESTAMP_ISO8601> を実際の値に置換）
 #    タイムスタンプ形式: 2026-05-07T00:00:00Z
 npx wrangler d1 time-travel restore gh-trends-db \
-  --timestamp=<TIMESTAMP_ISO8601> \
-  --network-mode=remote
+  --timestamp=<TIMESTAMP_ISO8601>
 
 # 例: 2時間前の状態に復元
 npx wrangler d1 time-travel restore gh-trends-db \
-  --timestamp=$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ) \
-  --network-mode=remote
+  --timestamp=$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)
 ```
 
 ### 動作確認（Time Travel後）
@@ -205,7 +203,10 @@ npx wrangler d1 execute gh-trends-db \
 # 1. R2バケットのバックアップ一覧を確認
 npx wrangler r2 object list gh-trends-backups
 
-# 2. 最新のバックアップファイルをダウンロード（ファイル名例: gh-trends-db_2026-05-07.sql.gz）
+# 2. 作業ディレクトリを作成
+mkdir -p ./restore
+
+# 3. 最新のバックアップファイルをダウンロード（ファイル名例: gh-trends-db_2026-05-07.sql.gz）
 npx wrangler r2 object get gh-trends-backups/gh-trends-db_<YYYY-MM-DD>.sql.gz \
   --file=./restore/backup.sql.gz
 
@@ -214,17 +215,16 @@ npx wrangler r2 object get gh-trends-backups/gh-trends-db_<YYYY-MM-DD>.sql.gz \
 aws s3 cp s3://gh-trends-backups/gh-trends-db_<YYYY-MM-DD>.sql.gz ./restore/backup.sql.gz \
   --endpoint-url https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 
-# 3. 解凍
-mkdir -p ./restore
+# 4. 解凍
 gunzip ./restore/backup.sql.gz
 # → ./restore/backup.sql が生成される
 
-# 4. 本番D1に適用（⚠️ 既存データは上書きされます）
+# 5. 本番D1に適用（⚠️ 既存データは上書きされます）
 npx wrangler d1 execute gh-trends-db \
   --file=./restore/backup.sql \
   --remote
 
-# 5. 一時ファイルを削除
+# 6. 一時ファイルを削除
 rm -rf ./restore/
 ```
 
