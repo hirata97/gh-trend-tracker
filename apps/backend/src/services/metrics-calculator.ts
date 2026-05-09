@@ -6,7 +6,7 @@ import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import type { BatchMetricsResponse } from '@gh-trend-tracker/shared';
 import { getTodayISO } from '../shared/utils';
-import { repositories, repoSnapshots } from '../db/schema';
+import { repoSnapshots } from '../db/schema';
 import { calculateAndUpsertMetricsBatch } from './batch-db';
 
 export interface MetricsCalculateOptions {
@@ -28,7 +28,6 @@ export async function runMetricsCalculation(
   const todaySnaps = await db
     .select({ repoId: repoSnapshots.repoId, stars: repoSnapshots.stars })
     .from(repoSnapshots)
-    .innerJoin(repositories, eq(repoSnapshots.repoId, repositories.repoId))
     .where(eq(repoSnapshots.snapshotDate, todayDate));
 
   if (todaySnaps.length === 0) {
