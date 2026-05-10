@@ -3,7 +3,7 @@
  * HTTPエンドポイントとCronトリガーの両方から呼び出される
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq, and, between, lte, lt, desc, inArray } from 'drizzle-orm';
+import { eq, and, between, lte, desc, inArray } from 'drizzle-orm';
 import type { BatchWeeklyRankingResponse, WeeklyRankEntry } from '@gh-trend-tracker/shared';
 import { repositories, repoSnapshots, rankingWeekly } from '../db/schema';
 
@@ -94,16 +94,30 @@ export async function runWeeklyRankingCalculation(
   const snapshotsByRepo = new Map<number, Array<{ snapshotDate: string; stars: number }>>();
 
   if (repoIds.length > 0) {
-    // 1クエリで対象リポジトリのスナップショットをまとめて取得し、N+1クエリを回避する
-    const allSnapshots = await db
-      .select({
-        repoId: repoSnapshots.repoId,
-        snapshotDate: repoSnapshots.snapshotDate,
-        stars: repoSnapshots.stars,
-      })
-      .from(repoSnapshots)
-      .where(and(inArray(repoSnapshots.repoId, repoIds), lte(repoSnapshots.snapshotDate, endDate)))
-      .orderBy(repoSnapshots.repoId, desc(repoSnapshots.snapshotDate));
+    // Cloudflare D1 のバインド上限（約100）を回避するため、
+    // repoId をチャンクに分割してクエリを実行する
+    const BIND_PARAM_LIMIT = 100;
+    let allSnapshots: Array<{ repoId: number; snapshotDate: string; stars: number }> = [];
+
+    for (let i = 0; i < repoIds.length; i += BIND_PARAM_LIMIT) {
+      const chunk = repoIds.slice(i, i + BIND_PARAM_LIMIT);
+      const chunkSnapshots = await db
+        .select({
+          repoId: repoSnapshots.repoId,
+          snapshotDate: repoSnapshots.snapshotDate,
+          stars: repoSnapshots.stars,
+        })
+        .from(repoSnapshots)
+        .where(and(inArray(repoSnapshots.repoId, chunk), lte(repoSnapshots.snapshotDate, endDate)))
+        .orderBy(repoSnapshots.repoId, desc(repoSnapshots.snapshotDate));
+
+      allSnapshots.push(...chunkSnapshots);
+    }
+
+    // 安全のため、repoId昇順・snapshotDate降順でソートしてからMapに格納する
+    allSnapshots.sort((a, b) =>
+      a.repoId === b.repoId ? b.snapshotDate.localeCompare(a.snapshotDate) : a.repoId - b.repoId
+    );
 
     for (const snap of allSnapshots) {
       const list = snapshotsByRepo.get(snap.repoId);
@@ -155,8 +169,7 @@ export async function runWeeklyRankingCalculation(
 
   // 各言語でランキングを作成
   for (const lang of languageSet) {
-    const filtered =
-      lang === 'all' ? repoGrowth : repoGrowth.filter((r) => r.language === lang);
+    const filtered = lang === 'all' ? repoGrowth : repoGrowth.filter((r) => r.language === lang);
 
     // スター増加数の降順でソートし、トップ10を取得
     const sorted = [...filtered].sort((a, b) => b.starIncrease - a.starIncrease).slice(0, 10);
