@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # deploy.ymlからの呼び出しを許可
+  workflow_call:
 
 # Cancel in-progress runs for the same branch
 concurrency:

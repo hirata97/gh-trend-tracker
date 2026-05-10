@@ -280,8 +280,72 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 
 これで毎日自動的にGitHubトレンドデータが収集され、リモートD1データベースに保存されます。
 
-**次のステップ:**
+---
 
-1. フロントエンドをCloudflare Pagesにデプロイ
-2. リモートD1データベースに接続
-3. 本番環境でMVP完成！
+## 自動デプロイ（deploy.yml）
+
+`.github/workflows/deploy.yml` は `main` ブランチへの push 時または手動トリガーで自動デプロイを実行します。
+
+### デプロイフロー
+
+```
+main へ push
+  └─ ci-check（ci.yml の全ジョブをreuse）
+       ├─ deploy-backend（並列）
+       │    ├─ D1 マイグレーション（npm run db:migrate:prod）
+       │    └─ Cloudflare Workers デプロイ（npm run deploy）
+       └─ deploy-frontend（並列）
+            ├─ Astro ビルド（npm run build）
+            └─ Cloudflare Pages デプロイ（wrangler pages deploy）
+```
+
+### 必要なシークレット（デプロイ用）
+
+データ収集と同じシークレット（`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`）を使用します。
+
+### 手動デプロイ手順（緊急時・CI迂回時）
+
+GitHub Actions を使わずに手動でデプロイする場合：
+
+```bash
+# 1. Cloudflare認証を確認
+npx wrangler whoami
+
+# 2. Backendデプロイ
+cd apps/backend
+
+# D1マイグレーションのdry-run（確認）
+npm run db:migrate:prod:dry-run
+
+# D1マイグレーション適用
+npm run db:migrate:prod
+
+# Workersデプロイ
+npm run deploy
+
+# 3. Frontendデプロイ
+cd ../frontend
+
+# ビルド
+npm run build
+
+# Cloudflare Pagesへデプロイ
+npx wrangler pages deploy dist --project-name=gh-trend-tracker-frontend
+```
+
+### Cloudflare Pagesプロジェクトの初回作成
+
+初回デプロイ前に Pages プロジェクトを作成する必要があります：
+
+```bash
+# プロジェクト作成（初回のみ）
+npx wrangler pages project create gh-trend-tracker-frontend
+```
+
+または Cloudflare ダッシュボード（https://dash.cloudflare.com）から「Workers & Pages」→「Create」で作成。
+
+### デプロイ失敗時の確認
+
+- GitHub Actions の **Actions** タブでログを確認
+- `deploy-backend` または `deploy-frontend` ジョブが赤くなっていれば失敗
+- `ci-check` が失敗している場合は lint/テスト/ビルドエラーを先に修正する
