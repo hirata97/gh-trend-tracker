@@ -5,10 +5,14 @@ import { repositories, repoSnapshots } from '../db/schema';
 import { SearchQuerySchema } from '../schemas/search';
 import { validationError, dbError } from '../shared/errors';
 import { getTodayISO } from '../shared/utils';
+import { cacheMiddleware } from '../middleware/cache';
 import type { SearchResponse, ApiError } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
 const repositoriesSearch = new Hono<AppEnv>();
+
+// 検索結果は同一クエリの重複リクエスト緩和のため1分キャッシュ、2分stale-while-revalidate
+repositoriesSearch.use('/', cacheMiddleware(60, 120));
 
 repositoriesSearch.get('/', async (c) => {
   const db = c.get('db');

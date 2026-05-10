@@ -3,10 +3,14 @@ import { logger } from '../utils/logger';
 import { sql } from 'drizzle-orm';
 import { rankingWeekly } from '../db/schema';
 import { dbError } from '../shared/errors';
+import { cacheMiddleware } from '../middleware/cache';
 import type { AvailableWeeksResponse, ApiError, AvailableWeek } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
 const trendsWeeklyAvailable = new Hono<AppEnv>();
+
+// 利用可能週リストは週1回更新のため1時間キャッシュ、24時間stale-while-revalidate
+trendsWeeklyAvailable.use('/', cacheMiddleware(3600, 86400));
 
 trendsWeeklyAvailable.get('/', async (c) => {
   const db = c.get('db');
