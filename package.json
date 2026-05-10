@@ -45,6 +45,10 @@
     "esbuild": ">=0.25.0",
     "@esbuild-kit/core-utils": {
       "esbuild": ">=0.25.0"
+    },
+    "yaml": "^2.8.4",
+    "yaml-language-server": {
+      "yaml": "^2.8.4"
     }
   },
   "devDependencies": {

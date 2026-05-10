@@ -3,7 +3,7 @@
  * HTTPエンドポイントとCronトリガーの両方から呼び出される
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq, and, between, lte, lt, desc } from 'drizzle-orm';
+import { eq, and, between, lte, desc, inArray } from 'drizzle-orm';
 import type { BatchWeeklyRankingResponse, WeeklyRankEntry } from '@gh-trend-tracker/shared';
 import { repositories, repoSnapshots, rankingWeekly } from '../db/schema';
 
@@ -90,43 +90,69 @@ export async function runWeeklyRankingCalculation(
     starIncrease: number;
   }> = [];
 
+  const repoIds = reposWithSnapshots.map((repo) => repo.repoId);
+  const snapshotsByRepo = new Map<number, Array<{ snapshotDate: string; stars: number }>>();
+
+  if (repoIds.length > 0) {
+    // Cloudflare D1 のバインド上限（約100）を回避するため、
+    // repoId をチャンクに分割してクエリを実行する
+    const BIND_PARAM_LIMIT = 100;
+    const allSnapshots: Array<{ repoId: number; snapshotDate: string; stars: number }> = [];
+
+    for (let i = 0; i < repoIds.length; i += BIND_PARAM_LIMIT) {
+      const chunk = repoIds.slice(i, i + BIND_PARAM_LIMIT);
+      const chunkSnapshots = await db
+        .select({
+          repoId: repoSnapshots.repoId,
+          snapshotDate: repoSnapshots.snapshotDate,
+          stars: repoSnapshots.stars,
+        })
+        .from(repoSnapshots)
+        .where(and(inArray(repoSnapshots.repoId, chunk), lte(repoSnapshots.snapshotDate, endDate)))
+        .orderBy(repoSnapshots.repoId, desc(repoSnapshots.snapshotDate));
+
+      allSnapshots.push(...chunkSnapshots);
+    }
+
+    // 安全のため、repoId昇順・snapshotDate降順でソートしてからMapに格納する
+    allSnapshots.sort((a, b) =>
+      a.repoId === b.repoId ? b.snapshotDate.localeCompare(a.snapshotDate) : a.repoId - b.repoId
+    );
+
+    for (const snap of allSnapshots) {
+      const list = snapshotsByRepo.get(snap.repoId);
+      if (list) {
+        list.push({ snapshotDate: snap.snapshotDate, stars: snap.stars });
+      } else {
+        snapshotsByRepo.set(snap.repoId, [{ snapshotDate: snap.snapshotDate, stars: snap.stars }]);
+      }
+    }
+  }
+
   for (const repo of reposWithSnapshots) {
-    // 週開始日より前の最新スナップショット（開始時点のスター数）
-    // NOTE: 週開始日当日のスナップショットを含めると、月曜の増加分が差分から漏れるため除外する
-    const startSnap = await db
-      .select({ stars: repoSnapshots.stars })
-      .from(repoSnapshots)
-      .where(
-        and(
-          eq(repoSnapshots.repoId, repo.repoId),
-          lt(repoSnapshots.snapshotDate, startDate)
-        )
-      )
-      .orderBy(desc(repoSnapshots.snapshotDate))
-      .limit(1);
+    const snapshots = snapshotsByRepo.get(repo.repoId) ?? [];
 
-    // 週終了日以前の最新スナップショット（終了時点のスター数）
-    const endSnap = await db
-      .select({ stars: repoSnapshots.stars })
-      .from(repoSnapshots)
-      .where(
-        and(
-          eq(repoSnapshots.repoId, repo.repoId),
-          lte(repoSnapshots.snapshotDate, endDate)
-        )
-      )
-      .orderBy(desc(repoSnapshots.snapshotDate))
-      .limit(1);
+    let endStars: number | null = null;
+    let startStars: number | null = null;
 
-    const startStars = startSnap[0]?.stars ?? 0;
-    const endStars = endSnap[0]?.stars ?? 0;
-    const starIncrease = endStars - startStars;
+    for (const snap of snapshots) {
+      if (endStars === null && snap.snapshotDate <= endDate) {
+        endStars = snap.stars;
+      }
+      // NOTE: 週開始日当日のスナップショットを含めると、月曜の増加分が差分から漏れるため除外する
+      if (startStars === null && snap.snapshotDate < startDate) {
+        startStars = snap.stars;
+      }
+      if (endStars !== null && startStars !== null) {
+        break;
+      }
+    }
 
     repoGrowth.push({
       repoId: repo.repoId,
       fullName: repo.fullName,
       language: repo.language,
-      starIncrease,
+      starIncrease: (endStars ?? 0) - (startStars ?? 0),
     });
   }
 
@@ -143,8 +169,7 @@ export async function runWeeklyRankingCalculation(
 
   // 各言語でランキングを作成
   for (const lang of languageSet) {
-    const filtered =
-      lang === 'all' ? repoGrowth : repoGrowth.filter((r) => r.language === lang);
+    const filtered = lang === 'all' ? repoGrowth : repoGrowth.filter((r) => r.language === lang);
 
     // スター増加数の降順でソートし、トップ10を取得
     const sorted = [...filtered].sort((a, b) => b.starIncrease - a.starIncrease).slice(0, 10);
