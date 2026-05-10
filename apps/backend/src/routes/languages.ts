@@ -2,12 +2,15 @@ import { Hono } from 'hono';
 import { getAllLanguages } from '../shared/queries';
 import { dbError } from '../shared/errors';
 import { logger } from '../utils/logger';
+import { cacheMiddleware } from '../middleware/cache';
 import type { LanguagesResponse, ApiError } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
 const languages = new Hono<AppEnv>();
 
-// 言語一覧
+// 言語一覧（5分キャッシュ、10分stale-while-revalidate）
+languages.use('/', cacheMiddleware(300, 600));
+
 languages.get('/', async (c) => {
   const db = c.get('db');
 

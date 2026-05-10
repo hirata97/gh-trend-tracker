@@ -4,10 +4,14 @@ import { eq, and } from 'drizzle-orm';
 import { rankingWeekly } from '../db/schema';
 import { WeeklyTrendsQuerySchema } from '../schemas/weekly';
 import { validationError, notFoundError, dbError } from '../shared/errors';
+import { cacheMiddleware } from '../middleware/cache';
 import type { WeeklyTrendResponse, ApiError, WeeklyTrendItem } from '@gh-trend-tracker/shared';
 import type { AppEnv } from '../types/app';
 
 const trendsWeekly = new Hono<AppEnv>();
+
+// 週次データは一度計算されたら不変のため1時間キャッシュ、24時間stale-while-revalidate
+trendsWeekly.use('/', cacheMiddleware(3600, 86400));
 
 trendsWeekly.get('/', async (c) => {
   const db = c.get('db');
