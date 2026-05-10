@@ -97,7 +97,7 @@ export async function runWeeklyRankingCalculation(
     // Cloudflare D1 のバインド上限（約100）を回避するため、
     // repoId をチャンクに分割してクエリを実行する
     const BIND_PARAM_LIMIT = 100;
-    let allSnapshots: Array<{ repoId: number; snapshotDate: string; stars: number }> = [];
+    const allSnapshots: Array<{ repoId: number; snapshotDate: string; stars: number }> = [];
 
     for (let i = 0; i < repoIds.length; i += BIND_PARAM_LIMIT) {
       const chunk = repoIds.slice(i, i + BIND_PARAM_LIMIT);
