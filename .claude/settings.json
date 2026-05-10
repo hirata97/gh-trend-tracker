@@ -1,7 +1,4 @@
 {
-  "enabledPlugins": {
-    "serena@claude-plugins-official": true
-  },
   "permissions": {
     "allow": [
       "Bash",
@@ -17,5 +14,8 @@
       "NotebookEdit"
     ],
     "defaultMode": "bypassPermissions"
+  },
+  "enabledPlugins": {
+    "serena@claude-plugins-official": true
   }
 }
