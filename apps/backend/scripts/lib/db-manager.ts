@@ -9,6 +9,8 @@
 import { getPlatformProxy } from 'wrangler';
 import { drizzle } from 'drizzle-orm/d1';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
+import type { BatchItem } from 'drizzle-orm/batch';
+import { sql } from 'drizzle-orm';
 import { repositories, repoSnapshots } from '../../src/db/schema.js';
 import type { GitHubRepo } from './github-client.js';
 
@@ -132,48 +134,12 @@ export class DatabaseManager {
   }
 
   /**
-   * Drizzle ORMを使用してリポジトリを挿入または更新（upsert）
-   */
-  private async upsertRepository(repo: GitHubRepo): Promise<void> {
-    const db = this.getDb();
-    const data = this.transformToRepository(repo);
-
-    // SQLiteのupsert動作のためINSERT OR REPLACEを使用
-    await db
-      .insert(repositories)
-      .values(data)
-      .onConflictDoUpdate({
-        target: repositories.repoId,
-        set: {
-          name: data.name,
-          fullName: data.fullName,
-          owner: data.owner,
-          language: data.language,
-          description: data.description,
-          htmlUrl: data.htmlUrl,
-          homepage: data.homepage,
-          topics: data.topics,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt,
-          pushedAt: data.pushedAt,
-        },
-      });
-  }
-
-  /**
-   * Drizzle ORMを使用してスナップショットを挿入（重複は無視）
-   */
-  private async insertSnapshotIfNotExists(repo: GitHubRepo, snapshotDate: string): Promise<void> {
-    const db = this.getDb();
-    const data = this.transformToSnapshot(repo, snapshotDate);
-
-    // SQLiteのINSERT OR IGNOREを使用 - 重複キーが存在する場合は無視
-    await db.insert(repoSnapshots).values(data).onConflictDoNothing();
-  }
-
-  /**
    * リポジトリとスナップショットのバッチをデータベースに保存
-   * Drizzle ORMによる安全なパラメータ化クエリを使用
+   * db.batch()でN+1クエリ問題を解消: 逐次O(2N)クエリ → チャンクバッチO(N/4 + N/14)クエリ
+   *
+   * D1パラメータ上限(100)への対応:
+   * - repositories upsert: values(11列) + set(11列) = 22パラメータ/行 → 4行/チャンク
+   * - repoSnapshots insert: 7列 → 14行/チャンク
    */
   async saveRepos(repos: GitHubRepo[]): Promise<{
     success: number;
@@ -184,30 +150,64 @@ export class DatabaseManager {
       return { success: 0, failed: 0, errors: [] };
     }
 
+    const db = this.getDb();
     const snapshotDate = this.getTodayISO();
-    let successCount = 0;
-    const errors: string[] = [];
+    const createdAt = new Date().toISOString();
 
-    for (const repo of repos) {
-      try {
-        // リポジトリをupsert
-        await this.upsertRepository(repo);
+    const repoValues = repos.map((repo) => this.transformToRepository(repo));
+    const snapshotValues = repos.map((repo) => ({
+      repoId: repo.id,
+      stars: repo.stargazers_count,
+      forks: repo.forks_count,
+      watchers: repo.watchers_count,
+      openIssues: repo.open_issues_count,
+      snapshotDate,
+      createdAt,
+    }));
 
-        // スナップショットを挿入（既存の場合は無視）
-        await this.insertSnapshotIfNotExists(repo, snapshotDate);
+    // D1パラメータ上限(100): values(11列) + set(11列) = 22パラメータ/行 → 4行/チャンク
+    const REPO_CHUNK_SIZE = Math.floor(100 / 22); // 4行/チャンク
+    // D1パラメータ上限(100): 7列
+    const SNAP_CHUNK_SIZE = Math.floor(100 / 7); // 14行/チャンク
 
-        successCount++;
-      } catch (error) {
-        const errorMsg = `リポジトリ ${repo.full_name} の保存に失敗: ${error instanceof Error ? error.message : error}`;
-        errors.push(errorMsg);
-      }
+    const batchItems: BatchItem<'sqlite'>[] = [];
+
+    for (let i = 0; i < repoValues.length; i += REPO_CHUNK_SIZE) {
+      const chunk = repoValues.slice(i, i + REPO_CHUNK_SIZE);
+      // excluded.column_name でINSERT対象行の値を参照（複数行バッチupsert時の各行の値を正しく反映）
+      batchItems.push(
+        db.insert(repositories).values(chunk).onConflictDoUpdate({
+          target: repositories.repoId,
+          set: {
+            name: sql`excluded.name`,
+            fullName: sql`excluded.full_name`,
+            owner: sql`excluded.owner`,
+            language: sql`excluded.language`,
+            description: sql`excluded.description`,
+            htmlUrl: sql`excluded.html_url`,
+            homepage: sql`excluded.homepage`,
+            topics: sql`excluded.topics`,
+            createdAt: sql`excluded.created_at`,
+            updatedAt: sql`excluded.updated_at`,
+            pushedAt: sql`excluded.pushed_at`,
+          },
+        })
+      );
     }
 
-    return {
-      success: successCount,
-      failed: repos.length - successCount,
-      errors,
-    };
+    for (let i = 0; i < snapshotValues.length; i += SNAP_CHUNK_SIZE) {
+      batchItems.push(
+        db.insert(repoSnapshots).values(snapshotValues.slice(i, i + SNAP_CHUNK_SIZE)).onConflictDoNothing()
+      );
+    }
+
+    try {
+      await db.batch(batchItems as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
+      return { success: repos.length, failed: 0, errors: [] };
+    } catch (error) {
+      const errorMsg = `バッチ保存に失敗: ${error instanceof Error ? error.message : error}`;
+      return { success: 0, failed: repos.length, errors: [errorMsg] };
+    }
   }
 
   /**
