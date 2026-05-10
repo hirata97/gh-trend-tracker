@@ -282,6 +282,68 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 
 ---
 
+## D1 日次バックアップ（backup-d1.yml）
+
+`.github/workflows/backup-d1.yml` は毎日 UTC 02:00（日本時間 11:00）に D1 データベースを R2 へエクスポートします。
+
+### バックアップフロー
+
+```
+毎日 UTC 02:00
+  └─ backup ジョブ
+       ├─ D1 export → /tmp/gh-trends-db_YYYY-MM-DD.sql
+       ├─ gzip 圧縮 → /tmp/gh-trends-db_YYYY-MM-DD.sql.gz
+       └─ R2 put → gh-trends-backups/gh-trends-db_YYYY-MM-DD.sql.gz
+```
+
+### 追加シークレットの設定
+
+バックアップ用に **最小権限の R2 API トークン** を別途作成し、2つのシークレットを追加します。
+
+#### R2 API トークンの作成
+
+1. https://dash.cloudflare.com/profile/api-tokens にアクセス
+2. **"Create Token"** → **"Create Custom Token"** を選択
+3. 以下の権限を設定：
+   - **Permissions**: `Object Storage（R2）` → `Edit`（または `Object Read & Write`）
+   - **Resources**: `Account > gh-trends-backups`（該当バケットのみ）
+4. **"Continue to summary"** → **"Create Token"** をクリック
+5. 表示された `Access Key ID` と `Secret Access Key` をコピー
+
+> **Note**: Cloudflare R2 は S3 互換 API を提供します。aws-cli を使用するため、アクセスキー形式のトークンが必要です。
+
+#### GitHub Secrets への登録
+
+| シークレット名 | 値 |
+| --- | --- |
+| `R2_BACKUP_ACCESS_KEY_ID` | R2 API トークンの Access Key ID |
+| `R2_BACKUP_SECRET_ACCESS_KEY` | R2 API トークンの Secret Access Key |
+
+> `CLOUDFLARE_ACCOUNT_ID` は既存のシークレットを流用します。
+
+### R2 バケットの作成
+
+バケット作成と90日ライフサイクルルールの設定は **Cloudflare ダッシュボード** から行います。
+
+1. https://dash.cloudflare.com → **R2 Object Storage** を開く
+2. **"Create bucket"** → バケット名: `gh-trends-backups`
+3. バケット作成後、**"Settings"** タブ → **"Object lifecycle policies"** を開く
+4. **"Add rule"** をクリックし、以下を設定：
+   - Rule name: `delete-after-90-days`
+   - Prefix: （空欄）
+   - Days until object expiration: `90`
+5. **"Save"** をクリック
+
+### 手動実行でテスト
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"D1 Daily Backup to R2"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. 実行ログで `Upload to R2` ステップが成功することを確認
+5. Cloudflare ダッシュボードの R2 バケットに `gh-trends-db_YYYY-MM-DD.sql.gz` が存在することを確認
+
+---
+
 ## 自動デプロイ（deploy.yml）
 
 `.github/workflows/deploy.yml` は `main` ブランチへの push 時または手動トリガーで自動デプロイを実行します。
