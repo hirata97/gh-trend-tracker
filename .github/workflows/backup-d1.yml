@@ -1,0 +1,70 @@
+name: D1 Daily Backup to R2
+
+on:
+  # 毎日 UTC 02:00 に実行（日本時間 11:00 AM）
+  schedule:
+    - cron: '0 2 * * *'
+
+  # 手動実行を許可（動作確認用）
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export D1 database to SQL
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          FILENAME="gh-trends-db_${DATE}.sql"
+          npx wrangler d1 export gh-trends-db \
+            --env production \
+            --remote \
+            --output="/tmp/${FILENAME}"
+          echo "BACKUP_FILENAME=${FILENAME}" >> "$GITHUB_ENV"
+          echo "BACKUP_DATE=${DATE}" >> "$GITHUB_ENV"
+
+      - name: Compress backup file
+        run: |
+          gzip "/tmp/${{ env.BACKUP_FILENAME }}"
+          echo "COMPRESSED_FILENAME=${{ env.BACKUP_FILENAME }}.gz" >> "$GITHUB_ENV"
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          aws s3 cp \
+            "/tmp/${{ env.COMPRESSED_FILENAME }}" \
+            "s3://gh-trends-backups/${{ env.COMPRESSED_FILENAME }}" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto
+
+      - name: Verify upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          aws s3 ls \
+            "s3://gh-trends-backups/${{ env.COMPRESSED_FILENAME }}" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto
