@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
+import sentry from '@sentry/astro';
 
 // https://astro.build/config
 export default defineConfig({
@@ -7,6 +8,14 @@ export default defineConfig({
     react({
       // Reactコンポーネントの部分ハイドレーション最適化
       include: ['**/components/**'],
+    }),
+    sentry({
+      dsn: process.env.PUBLIC_SENTRY_DSN,
+      sourceMapsUploadOptions: {
+        project: 'gh-trend-tracker-frontend',
+        // SENTRY_AUTH_TOKENはCI環境変数として管理（ローカルでは不要）
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+      },
     }),
   ],
   output: 'static',
