@@ -3,6 +3,7 @@
  * HTTPエンドポイントとCronトリガーの両方から呼び出される
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { eq, and, between, lte, desc, inArray } from 'drizzle-orm';
 import type { BatchWeeklyRankingResponse, WeeklyRankEntry } from '@gh-trend-tracker/shared';
 import { repositories, repoSnapshots, rankingWeekly } from '../db/schema';
@@ -167,7 +168,9 @@ export async function runWeeklyRankingCalculation(
 
   let totalRankings = 0;
 
-  // 各言語でランキングを作成
+  // 各言語のランキングデータを収集し、db.batch()で一括書き込み（逐次O(2L)RTT → O(1)RTT）
+  const batchItems: BatchItem<'sqlite'>[] = [];
+
   for (const lang of languageSet) {
     const filtered = lang === 'all' ? repoGrowth : repoGrowth.filter((r) => r.language === lang);
 
@@ -186,24 +189,36 @@ export async function runWeeklyRankingCalculation(
     }
 
     // 既存データを削除してから挿入（冪等性を保証）
-    await db
-      .delete(rankingWeekly)
-      .where(
-        and(
-          eq(rankingWeekly.year, year),
-          eq(rankingWeekly.weekNumber, weekNumber),
-          eq(rankingWeekly.language, lang)
+    batchItems.push(
+      db
+        .delete(rankingWeekly)
+        .where(
+          and(
+            eq(rankingWeekly.year, year),
+            eq(rankingWeekly.weekNumber, weekNumber),
+            eq(rankingWeekly.language, lang)
+          )
         )
-      );
+    );
 
-    await db.insert(rankingWeekly).values({
-      year,
-      weekNumber,
-      language: lang,
-      rankData: JSON.stringify(rankData),
-    });
+    batchItems.push(
+      db.insert(rankingWeekly).values({
+        year,
+        weekNumber,
+        language: lang,
+        rankData: JSON.stringify(rankData),
+      })
+    );
 
     totalRankings++;
+  }
+
+  // 全言語の削除+挿入をdb.batch()で実行（O(2L)逐次RTT → O(ceil(L/50))）
+  // D1は1バッチあたり最大100ステートメント制限があるため、50言語ペア(=100ステートメント)単位でチャンク分割
+  const D1_BATCH_STMT_LIMIT = 100;
+  for (let i = 0; i < batchItems.length; i += D1_BATCH_STMT_LIMIT) {
+    const chunk = batchItems.slice(i, i + D1_BATCH_STMT_LIMIT) as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]];
+    await db.batch(chunk);
   }
 
   return {
