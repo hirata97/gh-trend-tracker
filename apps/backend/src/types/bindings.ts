@@ -21,4 +21,6 @@ export type Bindings = {
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_PRO?: string;
   STRIPE_PRICE_ENTERPRISE?: string;
+  // Sentry
+  SENTRY_DSN?: string;
 };

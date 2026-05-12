@@ -1,17 +1,23 @@
 import { Hono } from 'hono';
+import * as Sentry from '@sentry/cloudflare';
 import { registerMiddleware } from './middleware';
 import { registerRoutes } from './routes';
 import { handleScheduled } from './scheduled';
+import { createSentryConfig } from './utils/sentry';
 import type { AppEnv } from './types/app';
+import type { Bindings } from './types/bindings';
 
 const app = new Hono<AppEnv>();
 
 registerMiddleware(app);
 registerRoutes(app);
 
-export default {
-  fetch: app.fetch,
-  async scheduled(event: ScheduledEvent, env: AppEnv['Bindings'], ctx: ExecutionContext) {
-    ctx.waitUntil(handleScheduled(event, env));
-  },
-};
+export default Sentry.withSentry<Bindings>(
+  (env) => createSentryConfig(env),
+  {
+    fetch: app.fetch,
+    async scheduled(controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+      ctx.waitUntil(handleScheduled(controller, env));
+    },
+  }
+);

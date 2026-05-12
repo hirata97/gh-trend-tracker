@@ -6,7 +6,7 @@ import { logger } from './utils/logger';
 import type { AppEnv } from './types/app';
 
 export async function handleScheduled(
-  event: ScheduledEvent,
+  event: ScheduledController,
   env: AppEnv['Bindings'],
 ): Promise<void> {
   const db = drizzle(env.DB);
