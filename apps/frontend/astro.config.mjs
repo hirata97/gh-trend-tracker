@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import sentry from '@sentry/astro';
+import process from 'node:process';
 
 // https://astro.build/config
 export default defineConfig({

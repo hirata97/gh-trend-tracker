@@ -4,7 +4,7 @@
  */
 import * as Sentry from '@sentry/astro';
 
-const EMAIL_PATTERN = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
 Sentry.init({
   dsn: import.meta.env.PUBLIC_SENTRY_DSN,
