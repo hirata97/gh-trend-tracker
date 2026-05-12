@@ -5,7 +5,7 @@
 import type { ErrorEvent, EventHint } from '@sentry/cloudflare';
 import type { Bindings } from '../types/bindings';
 
-const EMAIL_PATTERN = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
 /**
  * 文字列中のメールアドレスをマスクする
