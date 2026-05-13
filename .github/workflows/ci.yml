@@ -176,7 +176,7 @@ jobs:
           cache: false
 
       - name: Install oasdiff
-        run: go install github.com/tufin/oasdiff@latest
+        run: go install github.com/oasdiff/oasdiff@latest
 
       - name: Detect OpenAPI breaking changes
         env:
