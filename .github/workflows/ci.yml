@@ -161,42 +161,32 @@ jobs:
   openapi-breaking-change:
     name: OpenAPI Breaking Change Detection
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      !contains(github.event.pull_request.labels.*.name, 'breaking-change')
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: OpenAPI 破壊的変更を検知
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: false
+
+      - name: Install oasdiff
+        run: go install github.com/tufin/oasdiff@latest
+
+      - name: Detect OpenAPI breaking changes
         env:
-          GH_TOKEN: ${{ github.token }}
-          SKIP_CHECK: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
           BASE_REF: ${{ github.base_ref }}
         run: |
-          set -euo pipefail
-
-          if [[ "$SKIP_CHECK" == "true" ]]; then
-            echo "breaking-change ラベルが付与されているため、チェックをスキップします"
-            exit 0
-          fi
-
-          # oasdiff インストール
-          gh release download --repo tufin/oasdiff --pattern "oasdiff_*_linux_amd64.tar.gz" --dir /tmp
-          tar -xzf /tmp/oasdiff_*_linux_amd64.tar.gz -C /tmp
-          sudo install /tmp/oasdiff /usr/local/bin/oasdiff
-          oasdiff version
-
-          # ベースブランチの OpenAPI spec を取得
-          git fetch origin "$BASE_REF"
+          git fetch origin "$BASE_REF" --depth=1
           git show "origin/$BASE_REF:docs/openapi.yaml" > /tmp/openapi-base.yaml
-
-          # 破壊的変更を検知
           echo "=== OpenAPI 破壊的変更チェック ==="
           echo "ベース: origin/$BASE_REF"
-          echo "PR: $(git rev-parse --short HEAD)"
-          oasdiff breaking /tmp/openapi-base.yaml docs/openapi.yaml --fail-on ERR
+          ~/go/bin/oasdiff breaking /tmp/openapi-base.yaml docs/openapi.yaml --fail-on ERR
 
   # Stage 8: Security audit
   security:
