@@ -157,7 +157,48 @@ jobs:
         working-directory: apps/backend
         run: npx drizzle-kit check 2>&1 || true
 
-  # Stage 7: Security audit
+  # Stage 7: OpenAPI破壊的変更検知（PRのみ）
+  openapi-breaking-change:
+    name: OpenAPI Breaking Change Detection
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: breaking-change ラベルの確認
+        id: label-check
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}" == "true" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "breaking-change ラベルが付与されているため、破壊的変更チェックをスキップします"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: oasdiff をインストール
+        if: steps.label-check.outputs.skip == 'false'
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/tufin/oasdiff/main/install.sh | sudo sh -s -- -b /usr/local/bin
+          oasdiff version
+
+      - name: ベースブランチの OpenAPI spec を取得
+        if: steps.label-check.outputs.skip == 'false'
+        run: |
+          git show origin/${{ github.base_ref }}:docs/openapi.yaml > /tmp/openapi-base.yaml
+
+      - name: 破壊的変更を検知
+        if: steps.label-check.outputs.skip == 'false'
+        run: |
+          echo "=== OpenAPI 破壊的変更チェック ==="
+          echo "ベース: origin/${{ github.base_ref }}"
+          echo "PR: $(git rev-parse --short HEAD)"
+          oasdiff breaking /tmp/openapi-base.yaml docs/openapi.yaml --fail-on ERR
+
+  # Stage 8: Security audit
   security:
     name: Security Audit
     runs-on: ubuntu-latest
