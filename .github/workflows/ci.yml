@@ -169,36 +169,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: breaking-change ラベルの確認
-        id: label-check
-        run: |
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}" == "true" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "breaking-change ラベルが付与されているため、破壊的変更チェックをスキップします"
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: oasdiff をインストール
-        if: steps.label-check.outputs.skip == 'false'
+      - name: OpenAPI 破壊的変更を検知
         env:
           GH_TOKEN: ${{ github.token }}
+          SKIP_CHECK: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
+          set -euo pipefail
+
+          if [[ "$SKIP_CHECK" == "true" ]]; then
+            echo "breaking-change ラベルが付与されているため、チェックをスキップします"
+            exit 0
+          fi
+
+          # oasdiff インストール
           gh release download --repo tufin/oasdiff --pattern "oasdiff_*_linux_amd64.tar.gz" --dir /tmp
-          tar -xzf /tmp/oasdiff_*_linux_amd64.tar.gz -C /usr/local/bin oasdiff
+          tar -xzf /tmp/oasdiff_*_linux_amd64.tar.gz -C /tmp
+          sudo install /tmp/oasdiff /usr/local/bin/oasdiff
           oasdiff version
 
-      - name: ベースブランチの OpenAPI spec を取得
-        if: steps.label-check.outputs.skip == 'false'
-        run: |
-          git fetch origin ${{ github.base_ref }}
-          git show origin/${{ github.base_ref }}:docs/openapi.yaml > /tmp/openapi-base.yaml
+          # ベースブランチの OpenAPI spec を取得
+          git fetch origin "$BASE_REF"
+          git show "origin/$BASE_REF:docs/openapi.yaml" > /tmp/openapi-base.yaml
 
-      - name: 破壊的変更を検知
-        if: steps.label-check.outputs.skip == 'false'
-        run: |
+          # 破壊的変更を検知
           echo "=== OpenAPI 破壊的変更チェック ==="
-          echo "ベース: origin/${{ github.base_ref }}"
+          echo "ベース: origin/$BASE_REF"
           echo "PR: $(git rev-parse --short HEAD)"
           oasdiff breaking /tmp/openapi-base.yaml docs/openapi.yaml --fail-on ERR
 
