@@ -181,13 +181,12 @@ jobs:
 
       - name: oasdiff をインストール
         if: steps.label-check.outputs.skip == 'false'
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/tufin/oasdiff/main/install.sh | sudo sh -s -- -b /usr/local/bin
-          oasdiff version
+        run: go install github.com/tufin/oasdiff@latest
 
       - name: ベースブランチの OpenAPI spec を取得
         if: steps.label-check.outputs.skip == 'false'
         run: |
+          git fetch origin ${{ github.base_ref }}
           git show origin/${{ github.base_ref }}:docs/openapi.yaml > /tmp/openapi-base.yaml
 
       - name: 破壊的変更を検知
@@ -196,7 +195,7 @@ jobs:
           echo "=== OpenAPI 破壊的変更チェック ==="
           echo "ベース: origin/${{ github.base_ref }}"
           echo "PR: $(git rev-parse --short HEAD)"
-          oasdiff breaking /tmp/openapi-base.yaml docs/openapi.yaml --fail-on ERR
+          $(go env GOPATH)/bin/oasdiff breaking /tmp/openapi-base.yaml docs/openapi.yaml --fail-on ERR
 
   # Stage 8: Security audit
   security:
