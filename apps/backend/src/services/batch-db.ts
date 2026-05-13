@@ -18,6 +18,20 @@ export async function getAllRepositoryFullNames(db: DrizzleD1Database): Promise<
 }
 
 /**
+ * 指定日のスナップショット（repoId + stars）を全件取得
+ * onConflictDoNothing後の実値を使用するため、insertSnapshot後に呼び出す
+ */
+export async function getTodaySnapshots(
+  db: DrizzleD1Database,
+  snapshotDate: string
+): Promise<Array<{ repoId: number; stars: number }>> {
+  return db
+    .select({ repoId: repoSnapshots.repoId, stars: repoSnapshots.stars })
+    .from(repoSnapshots)
+    .where(eq(repoSnapshots.snapshotDate, snapshotDate));
+}
+
+/**
  * リポジトリメタデータをupsert（GitHub APIデータで更新）
  */
 export async function upsertRepository(db: DrizzleD1Database, data: GitHubRepoData): Promise<void> {

@@ -9,7 +9,8 @@ import {
   getAllRepositoryFullNames,
   upsertRepository,
   insertSnapshot,
-  calculateAndUpsertMetrics,
+  getTodaySnapshots,
+  calculateAndUpsertMetricsBatch,
 } from './batch-db';
 import { fetchRepositories } from './github';
 
@@ -54,10 +55,11 @@ export async function runDailyCollection(options: CollectOptions): Promise<Batch
   // 2. GitHub APIから最新データを取得
   const fetchSummary = await fetchRepositories(fullNames, githubToken);
 
-  // 3. 成功分のDB更新（upsert repo → insert snapshot → calculate metrics）
+  // 3. 成功分のDB更新（upsert repo → insert snapshot）
   const todayDate = getTodayISO();
   let dbSuccess = 0;
   let dbErrors = 0;
+  let snapshotSuccessCount = 0;
 
   for (const result of fetchSummary.results) {
     if (result.status !== 'success') continue;
@@ -65,12 +67,27 @@ export async function runDailyCollection(options: CollectOptions): Promise<Batch
     try {
       await upsertRepository(db, result.data);
       await insertSnapshot(db, result.data, todayDate);
-      await calculateAndUpsertMetrics(db, result.data.id, todayDate);
-      dbSuccess++;
+      snapshotSuccessCount++;
     } catch (error) {
       dbErrors++;
       console.error(
         `DB更新エラー: ${result.data.full_name} - ${error instanceof Error ? error.message : error}`
+      );
+    }
+  }
+
+  // 4. 全リポジトリのメトリクスをバッチ計算（N+1クエリ問題を解消: O(4N)→O(2)ラウンドトリップ）
+  // DB実値を取得することでonConflictDoNothing後のスナップショット値との一貫性を担保
+  if (snapshotSuccessCount > 0) {
+    try {
+      const todaySnaps = await getTodaySnapshots(db, todayDate);
+      await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
+      dbSuccess = snapshotSuccessCount;
+    } catch (error) {
+      dbErrors += snapshotSuccessCount;
+      console.error(
+        `バッチメトリクス計算エラー: ${error instanceof Error ? error.message : error}`,
+        error instanceof Error ? error.stack : undefined
       );
     }
   }
