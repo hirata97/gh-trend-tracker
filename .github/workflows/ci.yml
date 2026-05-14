@@ -186,15 +186,15 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/tufin/oasdiff/main/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: main ブランチの openapi.json を取得
+      - name: main ブランチの openapi.yaml を取得
         if: steps.check-label.outputs.skip == 'false'
         run: |
-          git show origin/main:"docs/設計/openapi.json" > /tmp/openapi-base.json
+          git show origin/main:docs/openapi.yaml > /tmp/openapi-base.yaml
 
       - name: 破壊的変更チェック
         if: steps.check-label.outputs.skip == 'false'
         run: |
-          oasdiff breaking /tmp/openapi-base.json "docs/設計/openapi.json" --format text
+          oasdiff breaking /tmp/openapi-base.yaml docs/openapi.yaml --format text
 
   # Stage 8: Security audit
   security:
