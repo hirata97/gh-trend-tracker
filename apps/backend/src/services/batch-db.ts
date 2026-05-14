@@ -4,7 +4,7 @@
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { repositories, repoSnapshots, metricsDaily } from '../db/schema';
 import type { GitHubRepoData } from './github';
@@ -250,4 +250,94 @@ export async function calculateAndUpsertMetricsBatch(
   );
   const batchItems = [deleteQuery, ...insertQueries] as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]];
   await db.batch(batchItems);
+}
+
+/**
+ * 複数リポジトリをdb.batch()で一括upsert（N RTT → 1 RTT）
+ *
+ * D1パラメータ上限(100)への対応:
+ * - VALUES: 12列 × 4行 = 48パラメータ/チャンク
+ * - SET: excluded.* 参照のため追加パラメータなし
+ * - 安全側: db-managerに合わせて4行/チャンク（22パラメータ/行を保守的に想定）
+ */
+export async function batchUpsertRepositories(
+  db: DrizzleD1Database,
+  repos: GitHubRepoData[]
+): Promise<void> {
+  if (repos.length === 0) return;
+
+  const CHUNK_SIZE = Math.floor(100 / 22); // 4行/チャンク（db-managerと統一）
+  const repoValues = repos.map((data) => ({
+    repoId: data.id,
+    name: data.name,
+    fullName: data.full_name,
+    owner: data.owner.login,
+    language: data.language,
+    description: data.description,
+    htmlUrl: data.html_url,
+    homepage: data.homepage,
+    topics: data.topics.length > 0 ? JSON.stringify(data.topics) : null,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    pushedAt: data.pushed_at,
+  }));
+
+  const batchItems: BatchItem<'sqlite'>[] = [];
+  for (let i = 0; i < repoValues.length; i += CHUNK_SIZE) {
+    batchItems.push(
+      db
+        .insert(repositories)
+        .values(repoValues.slice(i, i + CHUNK_SIZE))
+        .onConflictDoUpdate({
+          target: repositories.repoId,
+          set: {
+            name: sql`excluded.name`,
+            fullName: sql`excluded.full_name`,
+            owner: sql`excluded.owner`,
+            language: sql`excluded.language`,
+            description: sql`excluded.description`,
+            htmlUrl: sql`excluded.html_url`,
+            homepage: sql`excluded.homepage`,
+            topics: sql`excluded.topics`,
+            updatedAt: sql`excluded.updated_at`,
+            pushedAt: sql`excluded.pushed_at`,
+          },
+        })
+    );
+  }
+
+  await db.batch(batchItems as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
+}
+
+/**
+ * 複数スナップショットをdb.batch()で一括insert（N RTT → 1 RTT）
+ * D1パラメータ上限(100)への対応: 7列 × 14行 = 98パラメータ/チャンク
+ */
+export async function batchInsertSnapshots(
+  db: DrizzleD1Database,
+  repos: GitHubRepoData[],
+  snapshotDate: string
+): Promise<void> {
+  if (repos.length === 0) return;
+
+  const CHUNK_SIZE = Math.floor(100 / 7); // 14行/チャンク
+  const createdAt = new Date().toISOString();
+  const snapshotValues = repos.map((data) => ({
+    repoId: data.id,
+    stars: data.stargazers_count,
+    forks: data.forks_count,
+    watchers: data.watchers_count,
+    openIssues: data.open_issues_count,
+    snapshotDate,
+    createdAt,
+  }));
+
+  const batchItems: BatchItem<'sqlite'>[] = [];
+  for (let i = 0; i < snapshotValues.length; i += CHUNK_SIZE) {
+    batchItems.push(
+      db.insert(repoSnapshots).values(snapshotValues.slice(i, i + CHUNK_SIZE)).onConflictDoNothing()
+    );
+  }
+
+  await db.batch(batchItems as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
 }

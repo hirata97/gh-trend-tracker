@@ -7,11 +7,12 @@ import type { BatchCollectResponse } from '@gh-trend-tracker/shared';
 import { getTodayISO } from '../shared/utils';
 import {
   getAllRepositoryFullNames,
-  upsertRepository,
-  insertSnapshot,
+  batchUpsertRepositories,
+  batchInsertSnapshots,
   getTodaySnapshots,
   calculateAndUpsertMetricsBatch,
 } from './batch-db';
+import type { GitHubRepoData } from './github';
 import { fetchRepositories } from './github';
 
 export interface CollectOptions {
@@ -55,36 +56,58 @@ export async function runDailyCollection(options: CollectOptions): Promise<Batch
   // 2. GitHub APIから最新データを取得
   const fetchSummary = await fetchRepositories(fullNames, githubToken);
 
-  // 3. 成功分のDB更新（upsert repo → insert snapshot）
+  // 3. 成功分のDB更新（upsert repo → insert snapshot → calculate metrics）
   const todayDate = getTodayISO();
   let dbSuccess = 0;
   let dbErrors = 0;
-  let snapshotSuccessCount = 0;
 
-  for (const result of fetchSummary.results) {
-    if (result.status !== 'success') continue;
+  const successResults = fetchSummary.results.filter(
+    (r): r is { status: 'success'; data: GitHubRepoData } => r.status === 'success'
+  );
 
-    try {
-      await upsertRepository(db, result.data);
-      await insertSnapshot(db, result.data, todayDate);
-      snapshotSuccessCount++;
-    } catch (error) {
-      dbErrors++;
-      console.error(
-        `DB更新エラー: ${result.data.full_name} - ${error instanceof Error ? error.message : error}`
-      );
-    }
+  // リポジトリupsertをdb.batch()で一括実行（N RTT → 1 RTT）
+  // 失敗時: リポジトリデータが未更新のためearly return
+  try {
+    await batchUpsertRepositories(db, successResults.map((r) => r.data));
+  } catch (error) {
+    dbErrors = successResults.length;
+    console.error(
+      `リポジトリ一括更新エラー: ${error instanceof Error ? error.message : error}`
+    );
+    return {
+      message: 'Daily collection completed',
+      summary: {
+        total: fetchSummary.total,
+        githubFetchSuccess: fetchSummary.success,
+        githubNotFound: fetchSummary.notFound,
+        githubErrors: fetchSummary.errors,
+        dbUpdateSuccess: 0,
+        dbUpdateErrors: dbErrors,
+      },
+      snapshotDate: todayDate,
+      durationMs: Date.now() - startTime,
+    };
+  }
+
+  // スナップショット挿入をdb.batch()で一括実行（N RTT → 1 RTT）
+  // 失敗時: ログのみでメトリクス計算は続行（DB既存スナップショットで計算可能）
+  try {
+    await batchInsertSnapshots(db, successResults.map((r) => r.data), todayDate);
+  } catch (error) {
+    console.error(
+      `スナップショット一括挿入エラー: ${error instanceof Error ? error.message : error}`
+    );
   }
 
   // 4. 全リポジトリのメトリクスをバッチ計算（N+1クエリ問題を解消: O(4N)→O(2)ラウンドトリップ）
   // DB実値を取得することでonConflictDoNothing後のスナップショット値との一貫性を担保
-  if (snapshotSuccessCount > 0) {
+  if (successResults.length > 0) {
     try {
       const todaySnaps = await getTodaySnapshots(db, todayDate);
       await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
-      dbSuccess = snapshotSuccessCount;
+      dbSuccess = successResults.length;
     } catch (error) {
-      dbErrors += snapshotSuccessCount;
+      dbErrors += successResults.length;
       console.error(
         `バッチメトリクス計算エラー: ${error instanceof Error ? error.message : error}`,
         error instanceof Error ? error.stack : undefined
