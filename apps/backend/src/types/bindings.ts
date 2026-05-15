@@ -23,4 +23,8 @@ export type Bindings = {
   STRIPE_PRICE_ENTERPRISE?: string;
   // Sentry
   SENTRY_DSN?: string;
+  // Cloudflare Turnstile（Phase 3: Bot対策）
+  // テストモード: TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+  TURNSTILE_SECRET_KEY?: string;
+  TURNSTILE_SITE_KEY?: string;
 };
