@@ -157,7 +157,38 @@ jobs:
         working-directory: apps/backend
         run: npx drizzle-kit check 2>&1 || true
 
-  # Stage 7: Security audit
+  # Stage 7: OpenAPI破壊的変更検知（PRのみ）
+  openapi-breaking-change:
+    name: OpenAPI Breaking Change Detection
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' &&
+      !contains(github.event.pull_request.labels.*.name, 'breaking-change')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: false
+
+      - name: Install oasdiff
+        run: go install github.com/oasdiff/oasdiff@latest
+
+      - name: Detect OpenAPI breaking changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF" --depth=1
+          git show "origin/$BASE_REF:docs/openapi.yaml" > /tmp/openapi-base.yaml
+          echo "=== OpenAPI 破壊的変更チェック ==="
+          echo "ベース: origin/$BASE_REF"
+          ~/go/bin/oasdiff breaking /tmp/openapi-base.yaml docs/openapi.yaml --fail-on ERR
+
+  # Stage 8: Security audit
   security:
     name: Security Audit
     runs-on: ubuntu-latest
