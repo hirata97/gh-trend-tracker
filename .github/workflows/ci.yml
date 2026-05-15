@@ -178,3 +178,42 @@ jobs:
 
       - name: Run security audit
         run: npm audit --audit-level=high
+
+  # Stage 8: OpenAPI 破壊的変更チェック（PRのみ）
+  api-breaking-change-check:
+    name: API Breaking Change Check
+    runs-on: ubuntu-latest
+    # PRイベントのみ実行（push/workflow_callはスキップ）
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository（PRブランチ）
+        uses: actions/checkout@v4
+
+      - name: Checkout main ブランチの openapi.yaml を取得
+        run: |
+          git fetch origin main --depth=1
+          git show origin/main:docs/openapi.yaml > /tmp/openapi-main.yaml
+
+      - name: breaking-change ラベルの確認
+        id: check-label
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          if echo "$LABELS" | grep -q 'breaking-change'; then
+            echo "has_breaking_change_label=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_breaking_change_label=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: OpenAPI 破壊的変更チェック（oasdiff）
+        if: steps.check-label.outputs.has_breaking_change_label == 'false'
+        run: |
+          # oasdiff をインストールして破壊的変更を検出
+          curl -sSfL https://raw.githubusercontent.com/oasdiff/oasdiff/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+          oasdiff breaking /tmp/openapi-main.yaml docs/openapi.yaml --fail-on ERR
+
+      - name: breaking-change ラベル付きPRのスキップ通知
+        if: steps.check-label.outputs.has_breaking_change_label == 'true'
+        run: |
+          echo "::warning::breaking-change ラベルが付与されているため、APIの破壊的変更チェックをスキップします。"
+          echo "::warning::意図的な破壊的変更の場合は、APIバージョンを上げることを検討してください。"
