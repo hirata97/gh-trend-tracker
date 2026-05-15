@@ -95,25 +95,29 @@ export async function runWeeklyRankingCalculation(
   const snapshotsByRepo = new Map<number, Array<{ snapshotDate: string; stars: number }>>();
 
   if (repoIds.length > 0) {
-    // Cloudflare D1 のバインド上限（約100）を回避するため、
-    // repoId をチャンクに分割してクエリを実行する
+    // Cloudflare D1 のバインド上限（約100）を回避するため、repoId をチャンクに分割する
+    // 各チャンクは相互依存がないため Promise.all で並列実行（逐次O(N/100)RTT → O(1)RTT）
+    // D1 の同時サブリクエスト上限（約6）以内に収まるよう BIND_PARAM_LIMIT=100 でチャンク数を管理する
     const BIND_PARAM_LIMIT = 100;
-    const allSnapshots: Array<{ repoId: number; snapshotDate: string; stars: number }> = [];
-
+    const chunks: number[][] = [];
     for (let i = 0; i < repoIds.length; i += BIND_PARAM_LIMIT) {
-      const chunk = repoIds.slice(i, i + BIND_PARAM_LIMIT);
-      const chunkSnapshots = await db
-        .select({
-          repoId: repoSnapshots.repoId,
-          snapshotDate: repoSnapshots.snapshotDate,
-          stars: repoSnapshots.stars,
-        })
-        .from(repoSnapshots)
-        .where(and(inArray(repoSnapshots.repoId, chunk), lte(repoSnapshots.snapshotDate, endDate)))
-        .orderBy(repoSnapshots.repoId, desc(repoSnapshots.snapshotDate));
-
-      allSnapshots.push(...chunkSnapshots);
+      chunks.push(repoIds.slice(i, i + BIND_PARAM_LIMIT));
     }
+
+    const chunkResults = await Promise.all(
+      chunks.map((chunk) =>
+        db
+          .select({
+            repoId: repoSnapshots.repoId,
+            snapshotDate: repoSnapshots.snapshotDate,
+            stars: repoSnapshots.stars,
+          })
+          .from(repoSnapshots)
+          .where(and(inArray(repoSnapshots.repoId, chunk), lte(repoSnapshots.snapshotDate, endDate)))
+          .orderBy(repoSnapshots.repoId, desc(repoSnapshots.snapshotDate))
+      )
+    );
+    const allSnapshots = chunkResults.flat();
 
     // 安全のため、repoId昇順・snapshotDate降順でソートしてからMapに格納する
     allSnapshots.sort((a, b) =>
