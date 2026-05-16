@@ -15,7 +15,8 @@ jobs:
   deploy-preview:
     name: Deploy Frontend (Preview)
     runs-on: ubuntu-latest
-    environment: preview
+    # フォークPRはシークレットにアクセスできないため除外（セキュリティ対策）
+    if: github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Checkout repository
@@ -44,6 +45,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         working-directory: apps/frontend
         run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN が未設定のためデプロイをスキップします。"
+            echo "開発ガイドの初回セットアップ手順に従って設定してください。"
+            exit 0
+          fi
           npx wrangler pages deploy dist \
             --project-name=gh-trend-tracker \
             --branch=${{ github.head_ref }}
