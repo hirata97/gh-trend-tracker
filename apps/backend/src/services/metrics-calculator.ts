@@ -3,10 +3,8 @@
  * HTTPエンドポイントとCronトリガーの両方から呼び出される
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
 import type { BatchMetricsResponse } from '@gh-trend-tracker/shared';
 import { getTodayISO } from '../shared/utils';
-import { repoSnapshots } from '../db/schema';
 import { calculateAndUpsertMetricsBatch } from './batch-db';
 
 export interface MetricsCalculateOptions {
@@ -24,11 +22,9 @@ export async function runMetricsCalculation(
   const startTime = Date.now();
   const todayDate = getTodayISO();
 
-  // 本日のスナップショットがあるリポジトリID・スター数を一括取得（初回クエリでstarsも取得し後続クエリを削減）
-  const todaySnaps = await db
-    .select({ repoId: repoSnapshots.repoId, stars: repoSnapshots.stars })
-    .from(repoSnapshots)
-    .where(eq(repoSnapshots.snapshotDate, todayDate));
+  // 例外はルートハンドラに伝播させ500レスポンスとする（D1障害を200で隠蔽しない）
+  // LEFT JOINで today+7d+30d を1クエリ1RTTで取得し、db.batchで書き込み（計2RTT）
+  const todaySnaps = await calculateAndUpsertMetricsBatch(db, todayDate);
 
   if (todaySnaps.length === 0) {
     return {
@@ -44,29 +40,13 @@ export async function runMetricsCalculation(
     };
   }
 
-  let success = 0;
-  const skipped = 0;
-  let errors = 0;
-
-  try {
-    // JOINバッチ化でN+1クエリ問題を解消（O(5N)クエリ → O(N/16+4)クエリ）
-    await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
-    success = todaySnaps.length;
-  } catch (error) {
-    errors = todaySnaps.length;
-    console.error(
-      `バッチメトリクス計算エラー: ${error instanceof Error ? error.message : error}`,
-      error instanceof Error ? error.stack : undefined
-    );
-  }
-
   return {
     message: 'Metrics calculation completed',
     summary: {
       total: todaySnaps.length,
-      success,
-      skipped,
-      errors,
+      success: todaySnaps.length,
+      skipped: 0,
+      errors: 0,
     },
     calculatedDate: todayDate,
     durationMs: Date.now() - startTime,
