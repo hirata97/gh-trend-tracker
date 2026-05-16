@@ -91,9 +91,11 @@ export async function runDailyCollection(options: CollectOptions): Promise<Batch
 
   // スナップショット挿入をdb.batch()で一括実行（N RTT → 1 RTT）
   // 失敗時: ログのみでメトリクス計算は続行（DB既存スナップショットで計算可能）
+  let snapshotFailed = false;
   try {
     await batchInsertSnapshots(db, successResults.map((r) => r.data), todayDate);
   } catch (error) {
+    snapshotFailed = true;
     console.error(
       `スナップショット一括挿入エラー: ${error instanceof Error ? error.message : error}`
     );
@@ -105,7 +107,15 @@ export async function runDailyCollection(options: CollectOptions): Promise<Batch
     try {
       const todaySnaps = await getTodaySnapshots(db, todayDate);
       await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
-      dbSuccess = successResults.length;
+      // スナップショット挿入失敗時は実際に書き込まれた件数で成否を判定する。
+      // onConflictDoNothingで既存行をスキップした件数も含むため、
+      // todaySnaps.lengthをsuccessの上限として扱う。
+      const snapshotCount = todaySnaps.length;
+      const missing = successResults.length - snapshotCount;
+      dbSuccess = snapshotCount;
+      if (snapshotFailed && missing > 0) {
+        dbErrors += missing;
+      }
     } catch (error) {
       dbErrors += successResults.length;
       console.error(
