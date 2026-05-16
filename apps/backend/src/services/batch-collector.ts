@@ -9,7 +9,6 @@ import {
   getAllRepositoryFullNames,
   batchUpsertRepositories,
   batchInsertSnapshots,
-  getTodaySnapshots,
   calculateAndUpsertMetricsBatch,
 } from './batch-db';
 import type { GitHubRepoData } from './github';
@@ -101,12 +100,11 @@ export async function runDailyCollection(options: CollectOptions): Promise<Batch
     );
   }
 
-  // 4. 全リポジトリのメトリクスをバッチ計算（N+1クエリ問題を解消: O(4N)→O(2)ラウンドトリップ）
-  // DB実値を取得することでonConflictDoNothing後のスナップショット値との一貫性を担保
+  // 4. 全リポジトリのメトリクスをバッチ計算（LEFT JOINで3クエリ2RTT → 1クエリ1RTT）
+  // calculateAndUpsertMetricsBatchがDB実値を取得するためonConflictDoNothing後の一貫性を担保
   if (successResults.length > 0) {
     try {
-      const todaySnaps = await getTodaySnapshots(db, todayDate);
-      await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
+      const todaySnaps = await calculateAndUpsertMetricsBatch(db, todayDate);
       // スナップショット挿入失敗時は実際に書き込まれた件数で成否を判定する。
       // onConflictDoNothingで既存行をスキップした件数も含むため、
       // todaySnaps.lengthをsuccessの上限として扱う。

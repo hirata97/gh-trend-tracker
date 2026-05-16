@@ -169,21 +169,19 @@ export async function calculateAndUpsertMetrics(
 
 /**
  * 全リポジトリのメトリクスをバッチでupsertする
- * N+1クエリ問題を解消: 個別クエリO(5N)をJOINバッチ化でO(N/16 + 4)に削減
+ * 3クエリ（today取得 + snap7d + snap30d）を1つのLEFT JOINクエリに統合（3RTT → 2RTT）
  *
  * D1のパラメータ上限(100)への対応:
- * - SELECTは自己JOINを使用（INパラメータリスト不要）
+ * - SELECTは自己LEFT JOINを使用（INパラメータリスト不要）
  * - DELETEはcalculated_date単一条件（パラメータ1件）
  * - INSERTは6列×16行=96パラメータ以内でチャンク分割
+ *
+ * 戻り値: 本日のスナップショット一覧（呼び出し元の後続処理で使用）
  */
 export async function calculateAndUpsertMetricsBatch(
   db: DrizzleD1Database,
-  todaySnapshots: Array<{ repoId: number; stars: number }>,
   todayDate: string
-): Promise<void> {
-  if (todaySnapshots.length === 0) return;
-
-  const todayStarsMap = new Map(todaySnapshots.map((r) => [r.repoId, r.stars]));
+): Promise<Array<{ repoId: number; stars: number }>> {
   const sevenDaysAgoStr = getDaysAgoDate(todayDate, 7);
   const thirtyDaysAgoStr = getDaysAgoDate(todayDate, 30);
 
@@ -192,42 +190,45 @@ export async function calculateAndUpsertMetricsBatch(
   const snap7dAlias = alias(repoSnapshots, 'snap_7d');
   const snap30dAlias = alias(repoSnapshots, 'snap_30d');
 
-  // 7日前・30日前のスナップショットを並列取得（相互依存なし、1ラウンドトリップ削減）
-  const [snap7dRows, snap30dRows] = await Promise.all([
-    db
-      .select({ repoId: snap7dAlias.repoId, stars: snap7dAlias.stars })
-      .from(snapToday)
-      .innerJoin(
-        snap7dAlias,
-        and(
-          eq(snap7dAlias.repoId, snapToday.repoId),
-          eq(snap7dAlias.snapshotDate, sevenDaysAgoStr)
-        )
+  // today・7日前・30日前を1クエリのLEFT JOINで取得（3クエリ2RTT → 1クエリ1RTT）
+  // 呼び出し元のtodaySnapshots取得クエリとsnap7d/snap30d並列クエリをまとめて削減
+  const rows = await db
+    .select({
+      repoId: snapToday.repoId,
+      todayStars: snapToday.stars,
+      stars7d: snap7dAlias.stars,
+      stars30d: snap30dAlias.stars,
+    })
+    .from(snapToday)
+    .leftJoin(
+      snap7dAlias,
+      and(
+        eq(snap7dAlias.repoId, snapToday.repoId),
+        eq(snap7dAlias.snapshotDate, sevenDaysAgoStr)
       )
-      .where(eq(snapToday.snapshotDate, todayDate)),
-    db
-      .select({ repoId: snap30dAlias.repoId, stars: snap30dAlias.stars })
-      .from(snapToday)
-      .innerJoin(
-        snap30dAlias,
-        and(
-          eq(snap30dAlias.repoId, snapToday.repoId),
-          eq(snap30dAlias.snapshotDate, thirtyDaysAgoStr)
-        )
+    )
+    .leftJoin(
+      snap30dAlias,
+      and(
+        eq(snap30dAlias.repoId, snapToday.repoId),
+        eq(snap30dAlias.snapshotDate, thirtyDaysAgoStr)
       )
-      .where(eq(snapToday.snapshotDate, todayDate)),
-  ]);
+    )
+    .where(eq(snapToday.snapshotDate, todayDate));
 
-  const snap7dMap = new Map(snap7dRows.map((r) => [r.repoId, r.stars]));
-  const snap30dMap = new Map(snap30dRows.map((r) => [r.repoId, r.stars]));
+  if (rows.length === 0) return [];
 
-  const metricsValues = todaySnapshots.map(({ repoId }) => {
-    const currentStars = todayStarsMap.get(repoId)!;
-    const stars7d = snap7dMap.get(repoId) ?? null;
-    const stars30d = snap30dMap.get(repoId) ?? null;
+  // repoIdで重複除去（LEFT JOIN理論上の多重一致やスキーマ制約崩れに対する防御）
+  const uniqueRows = new Map<number, { todayStars: number; stars7d: number | null; stars30d: number | null }>();
+  for (const { repoId, todayStars, stars7d, stars30d } of rows) {
+    if (!uniqueRows.has(repoId)) {
+      uniqueRows.set(repoId, { todayStars, stars7d, stars30d });
+    }
+  }
 
-    const stars7dIncrease = stars7d !== null ? currentStars - stars7d : 0;
-    const stars30dIncrease = stars30d !== null ? currentStars - stars30d : 0;
+  const metricsValues = Array.from(uniqueRows.entries()).map(([repoId, { todayStars, stars7d, stars30d }]) => {
+    const stars7dIncrease = stars7d !== null ? todayStars - stars7d : 0;
+    const stars30dIncrease = stars30d !== null ? todayStars - stars30d : 0;
     const stars7dRate =
       stars7d !== null && stars7d > 0
         ? Math.round((stars7dIncrease / stars7d) * 10000) / 10000
@@ -250,6 +251,8 @@ export async function calculateAndUpsertMetricsBatch(
   );
   const batchItems = [deleteQuery, ...insertQueries] as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]];
   await db.batch(batchItems);
+
+  return Array.from(uniqueRows.entries()).map(([repoId, { todayStars }]) => ({ repoId, stars: todayStars }));
 }
 
 /**
