@@ -12,11 +12,16 @@ concurrency:
 
 jobs:
   # PRブランチのFrontendをCloudflare Pages Previewにデプロイ
+  # 有効化: リポジトリ変数 CLOUDFLARE_PAGES_ENABLED=true を設定する
+  #         Settings > Secrets and variables > Variables > Repository variables
   deploy-preview:
     name: Deploy Frontend (Preview)
     runs-on: ubuntu-latest
-    # フォークPRはシークレットにアクセスできないため除外（セキュリティ対策）
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # フォークPRはシークレット未アクセスのため除外（セキュリティ対策）
+    # CLOUDFLARE_PAGES_ENABLED=true が設定されていない場合はスキップ
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.CLOUDFLARE_PAGES_ENABLED == 'true'
 
     steps:
       - name: Checkout repository
@@ -45,11 +50,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         working-directory: apps/frontend
         run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "CLOUDFLARE_API_TOKEN が未設定のためデプロイをスキップします。"
-            echo "開発ガイドの初回セットアップ手順に従って設定してください。"
-            exit 0
-          fi
           npx wrangler pages deploy dist \
             --project-name=gh-trend-tracker \
             --branch=${{ github.head_ref }}
