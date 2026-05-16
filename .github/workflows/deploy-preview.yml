@@ -1,0 +1,49 @@
+name: Deploy Preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# PRごとに1つのプレビューデプロイのみ実行
+concurrency:
+  group: deploy-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # PRブランチのFrontendをCloudflare Pages Previewにデプロイ
+  deploy-preview:
+    name: Deploy Frontend (Preview)
+    runs-on: ubuntu-latest
+    environment: preview
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # PreviewはBackend開発環境（gh-trends-db-dev）を向ける
+      - name: Build frontend
+        env:
+          PUBLIC_API_URL: ${{ secrets.DEV_API_URL }}
+        working-directory: apps/frontend
+        run: npm run build
+
+      - name: Deploy Preview to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/frontend
+        run: |
+          npx wrangler pages deploy dist \
+            --project-name=gh-trend-tracker \
+            --branch=${{ github.head_ref }}
