@@ -3,11 +3,11 @@
  * HTTPエンドポイントとCronトリガーの両方から呼び出される
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import type { BatchMetricsResponse } from '@gh-trend-tracker/shared';
 import { getTodayISO } from '../shared/utils';
 import { repoSnapshots } from '../db/schema';
-import { calculateAndUpsertMetricsBatch } from './batch-db';
+import { calculateAndUpsertMetricsBatch, getDaysAgoDate } from './batch-db';
 
 export interface MetricsCalculateOptions {
   db: DrizzleD1Database;
@@ -23,12 +23,30 @@ export async function runMetricsCalculation(
   const { db } = options;
   const startTime = Date.now();
   const todayDate = getTodayISO();
+  const sevenDaysAgoStr = getDaysAgoDate(todayDate, 7);
+  const thirtyDaysAgoStr = getDaysAgoDate(todayDate, 30);
 
-  // 本日のスナップショットがあるリポジトリID・スター数を一括取得（初回クエリでstarsも取得し後続クエリを削減）
-  const todaySnaps = await db
-    .select({ repoId: repoSnapshots.repoId, stars: repoSnapshots.stars })
+  // 今日・7日前・30日前のスナップショットを1クエリで一括取得（3 RTT → 1 RTT）
+  const allSnaps = await db
+    .select({
+      repoId: repoSnapshots.repoId,
+      snapshotDate: repoSnapshots.snapshotDate,
+      stars: repoSnapshots.stars,
+    })
     .from(repoSnapshots)
-    .where(eq(repoSnapshots.snapshotDate, todayDate));
+    .where(inArray(repoSnapshots.snapshotDate, [todayDate, sevenDaysAgoStr, thirtyDaysAgoStr]));
+
+  const todayStarsMap = new Map<number, number>();
+  const snap7d = new Map<number, number>();
+  const snap30d = new Map<number, number>();
+  for (const snap of allSnaps) {
+    if (snap.snapshotDate === todayDate) todayStarsMap.set(snap.repoId, snap.stars);
+    else if (snap.snapshotDate === sevenDaysAgoStr) snap7d.set(snap.repoId, snap.stars);
+    else if (snap.snapshotDate === thirtyDaysAgoStr) snap30d.set(snap.repoId, snap.stars);
+    // else: inArray の3日付以外は無視（将来の拡張時の誤混入を防止）
+  }
+
+  const todaySnaps = Array.from(todayStarsMap, ([repoId, stars]) => ({ repoId, stars }));
 
   if (todaySnaps.length === 0) {
     return {
@@ -49,8 +67,8 @@ export async function runMetricsCalculation(
   let errors = 0;
 
   try {
-    // JOINバッチ化でN+1クエリ問題を解消（O(5N)クエリ → O(N/16+4)クエリ）
-    await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
+    // 事前取得済みマップを渡してDBクエリを省略（INクエリで取得済み）
+    await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate, { snap7d, snap30d });
     success = todaySnaps.length;
   } catch (error) {
     errors = todaySnaps.length;
