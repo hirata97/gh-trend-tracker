@@ -14,6 +14,8 @@ on:
 jobs:
   restore-test:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
 
     steps:
       - name: Checkout repository
@@ -77,6 +79,7 @@ jobs:
           DROP TABLE IF EXISTS repo_snapshots;
           DROP TABLE IF EXISTS repositories;
           DROP TABLE IF EXISTS languages;
+          DROP TABLE IF EXISTS d1_migrations;
           EOF
           npx wrangler d1 execute gh-trends-db-dev \
             --env development \
