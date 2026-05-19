@@ -13,6 +13,7 @@
  *   npm run db:check                        # ローカルSQLiteを使用
  *   npm run db:check -- --remote            # リモートD1を使用（本番）
  *   npm run db:check -- --env development   # 開発用D1を使用
+ *   npm run db:check -- --restore-mode      # リストアモード（タイムスタンプチェックをスキップ）
  *
  * 終了コード:
  *   0: 全チェック通過
@@ -29,6 +30,7 @@ interface CheckResult {
 
 const args = process.argv.slice(2);
 const isRemote = args.includes('--remote');
+const isRestoreMode = args.includes('--restore-mode');
 const envArg = args.find((a) => a.startsWith('--env'));
 const env = envArg ? envArg.split('=')[1] ?? args[args.indexOf(envArg) + 1] : 'development';
 
@@ -82,22 +84,32 @@ try {
   checks.push({ name: 'repo_snapshots: 行数 > 0', passed: false, message: String(err) });
 }
 
-// 3. metrics_daily の最新レコードが直近24時間以内
+// 3. metrics_daily の最新レコード確認（通常モード: 直近24時間以内、リストアモード: データ存在確認のみ）
 try {
-  const result = query(
-    `SELECT MAX(calculated_date) as latest FROM metrics_daily`
-  );
+  const result = query(`SELECT MAX(calculated_date) as latest FROM metrics_daily`);
   const latest = result.results?.[0]?.latest as string | undefined;
-  const hasRecent = latest !== undefined && latest !== null && latest >= threshold.slice(0, 10);
-  checks.push({
-    name: 'metrics_daily: 最新レコードが直近24時間以内',
-    passed: hasRecent,
-    message: hasRecent
-      ? `最新レコード: ${latest}`
-      : `最新レコード(${latest ?? 'なし'})が24時間以上前です（閾値: ${threshold.slice(0, 10)}）`,
-  });
+  if (isRestoreMode) {
+    const hasData = latest !== undefined && latest !== null;
+    checks.push({
+      name: 'metrics_daily: データ存在確認（リストアモード）',
+      passed: hasData,
+      message: hasData ? `最新レコード: ${latest}` : 'metrics_dailyにデータがありません',
+    });
+  } else {
+    const hasRecent = latest !== undefined && latest !== null && latest >= threshold.slice(0, 10);
+    checks.push({
+      name: 'metrics_daily: 最新レコードが直近24時間以内',
+      passed: hasRecent,
+      message: hasRecent
+        ? `最新レコード: ${latest}`
+        : `最新レコード(${latest ?? 'なし'})が24時間以上前です（閾値: ${threshold.slice(0, 10)}）`,
+    });
+  }
 } catch (err) {
-  checks.push({ name: 'metrics_daily: 最新レコードが直近24時間以内', passed: false, message: String(err) });
+  const name = isRestoreMode
+    ? 'metrics_daily: データ存在確認（リストアモード）'
+    : 'metrics_daily: 最新レコードが直近24時間以内';
+  checks.push({ name, passed: false, message: String(err) });
 }
 
 // 4. ranking_weekly の行数確認

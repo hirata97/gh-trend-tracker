@@ -344,6 +344,54 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 
 ---
 
+## 月次リストアテスト（restore-test.yml）
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00（日本時間 12:00）に R2 バックアップを開発用 D1 DB へリストアし、整合性を自動検証します。
+
+> ⚠️ **注意: このワークフローは `gh-trends-db-dev`（開発用 D1）を一旦全削除してからリストアします。**
+> 実行中は開発用 DB が一時的に破壊された状態になります。ローカル開発中にこのワークフローが実行されると、開発環境の DB が消去されます。
+> 月次リストアテスト中はローカル開発を一時停止するか、ローカル DB（`--local`）を使用してください。
+
+### リストアフロー
+
+```
+毎月1日 UTC 03:00（または手動実行）
+  └─ restore-test ジョブ
+       ├─ R2から最新バックアップを取得 → /tmp/gh-trends-db_YYYY-MM-DD.sql.gz
+       ├─ 解凍 → /tmp/gh-trends-db_YYYY-MM-DD.sql
+       ├─ dev DB 初期化（全テーブル DROP）
+       ├─ バックアップ SQL を dev DB に適用
+       ├─ 整合性チェック（npm run db:check -- --remote --env development --restore-mode）
+       └─ 失敗時 → GitHub Issue を自動起票
+```
+
+### 必要なシークレット
+
+| シークレット名 | 用途 |
+| --- | --- |
+| `R2_BACKUP_ACCESS_KEY_ID` | R2 からバックアップ取得 |
+| `R2_BACKUP_SECRET_ACCESS_KEY` | R2 からバックアップ取得 |
+| `CLOUDFLARE_API_TOKEN` | dev D1 への書き込み |
+| `CLOUDFLARE_ACCOUNT_ID` | R2 エンドポイント・D1 特定 |
+
+### `--restore-mode` フラグ
+
+`npm run db:check` に `--restore-mode` を付けると、タイムスタンプベースのチェック（直近24時間以内）がスキップされ、データ**存在確認**のみ行います。バックアップは古いデータを含むため、通常モードでは必ずタイムスタンプチェックが失敗します。
+
+### 手動実行でテスト
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"Monthly Restore Test"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. 実行ログで `Run integrity check` ステップが成功することを確認
+
+### 失敗時の対応
+
+ワークフロー失敗時は `[自動起票] 月次リストアテスト失敗 YYYY-MM-DD` という GitHub Issue が自動作成されます。
+Issue の手順に従いワークフローログを確認し、`docs/プロセス/障害対応Runbook.md` の「DB障害」セクションを参照してください。
+
+---
+
 ## 自動デプロイ（deploy.yml）
 
 `.github/workflows/deploy.yml` は `main` ブランチへの push 時または手動トリガーで自動デプロイを実行します。
