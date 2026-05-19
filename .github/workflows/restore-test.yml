@@ -12,6 +12,7 @@ on:
 # 実行中は開発用DBが一時的に破壊状態になることに注意
 
 permissions:
+  contents: read
   issues: write
 
 jobs:
