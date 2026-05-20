@@ -11,13 +11,13 @@
  *
  * コレクトフロー D1ラウンドトリップ比較（N=50リポジトリ）:
  *   OLD: 1(getAll) + N(upsert) + N(snapshot) + N×4(per-repo metrics) = 6N+1 = 301 RTT
- *   NEW: 1(getAll) + N(upsert) + N(snapshot) + 1(getTodaySnaps) + 2(batch metrics) = 2N+4 = 104 RTT
- *   → D1合計: 301×4ms=1204ms → 104×4ms=416ms（改善率65.4%）
+ *   NEW: 1(getAll) + N(upsert) + N(snapshot) + [today+7d+30d並列](1RTT) + 1(batch) = 2N+3 = 103 RTT
+ *   → D1合計: 301×4ms=1204ms → 103×4ms=412ms（改善率65.8%）
  */
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/d1';
-import { calculateAndUpsertMetrics, calculateAndUpsertMetricsBatch, getTodaySnapshots } from '../src/services/batch-db';
+import { calculateAndUpsertMetrics, calculateAndUpsertMetricsBatch } from '../src/services/batch-db';
 
 // テスト対象リポジトリ数
 const N_REPOS = 50;
@@ -28,12 +28,12 @@ const PROD_D1_LATENCY_MS = 4;
 // コレクトフロー内の D1 ラウンドトリップ数
 // 共通処理: 1(getAll) + N(upsert) + N(snapshot) = 2N+1 RTT
 // OLD メトリクス: N×4 RTT（SELECT today + Promise.all[7d,30d] + DELETE + INSERT）
-// NEW メトリクス: 1(getTodaySnaps) + 2 RTT（Promise.all[JOIN 7d,30d] + db.batch）
+// NEW メトリクス: 2 RTT（[today+7d+30d]全並列 + db.batch）
 const SHARED_D1_RTTS = 2 * N_REPOS + 1;       // 101 RTT
 const OLD_METRICS_RTTS = 4 * N_REPOS;          // 200 RTT
-const NEW_METRICS_RTTS = 3;                     // 3 RTT（getTodaySnaps + バッチ処理）
+const NEW_METRICS_RTTS = 2;                     // 2 RTT（today/7d/30d並列1RTT + バッチ1RTT）
 const OLD_TOTAL_D1_RTTS = SHARED_D1_RTTS + OLD_METRICS_RTTS; // 301 RTT
-const NEW_TOTAL_D1_RTTS = SHARED_D1_RTTS + NEW_METRICS_RTTS; // 104 RTT
+const NEW_TOTAL_D1_RTTS = SHARED_D1_RTTS + NEW_METRICS_RTTS; // 103 RTT
 
 // Drizzle loggerでクエリ数をカウントするDBを作成
 function createCountingDb(d1: D1Database) {
@@ -148,11 +148,10 @@ describe('バッチコレクター メトリクスバッチ化 ベンチマー�
       }
       const oldMetricsQueryCount = getOldCount();
 
-      // NEW: getTodaySnapshots → calculateAndUpsertMetricsBatch（バッチ処理）
-      // getTodaySnapshotsによりonConflictDoNothing後のDB実値を使用し整合性を担保
+      // NEW: calculateAndUpsertMetricsBatch（today/7d/30d並列取得 + バッチ処理）
+      // today取得を内部で7d/30dと並列化: 3RTT → 2RTT
       await env.DB.prepare('DELETE FROM metrics_daily').run();
-      const todaySnaps = await getTodaySnapshots(newDb, today);
-      await calculateAndUpsertMetricsBatch(newDb, todaySnaps, today);
+      await calculateAndUpsertMetricsBatch(newDb, today);
       const newMetricsQueryCount = getNewCount();
 
       // 結果が正しく計算されていることを確認
@@ -171,6 +170,7 @@ describe('バッチコレクター メトリクスバッチ化 ベンチマー�
       console.log(`リポジトリ数: ${N_REPOS}`);
       console.log(`メトリクス計算クエリ数: OLD=${oldMetricsQueryCount}, NEW=${newMetricsQueryCount}`);
       console.log(`  ※ NEWのdb.batch()はDrizzle loggerを経由しないため、DELETE+INSERTはカウント外`);
+      console.log(`  ※ NEWのSELECTクエリ数: today+7d+30d 3件（Promise.all並列 = 1RTT）`);
       console.log(`全コレクトフロー D1 RTT数: OLD=${OLD_TOTAL_D1_RTTS}, NEW=${NEW_TOTAL_D1_RTTS}`);
       console.log(
         `推定本番実行時間（D1部分）: OLD=${oldEstimatedMs}ms → NEW=${newEstimatedMs}ms` +

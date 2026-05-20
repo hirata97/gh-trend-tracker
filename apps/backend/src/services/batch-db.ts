@@ -169,21 +169,22 @@ export async function calculateAndUpsertMetrics(
 
 /**
  * 全リポジトリのメトリクスをバッチでupsertする
- * N+1クエリ問題を解消: 個別クエリO(5N)をJOINバッチ化でO(N/16 + 4)に削減
+ * N+1クエリ問題を解消: 個別クエリO(5N)をJOINバッチ化でO(N/16 + 3)に削減
+ *
+ * RTT最適化: 呼び出し元の todaySnaps 事前取得を廃止し、今日/7日前/30日前の3クエリを
+ * Promise.all で同時発行（外部1RTT + 内部2RTT = 3RTT → 内部1RTT + 1RTT = 2RTT）
  *
  * D1のパラメータ上限(100)への対応:
  * - SELECTは自己JOINを使用（INパラメータリスト不要）
  * - DELETEはcalculated_date単一条件（パラメータ1件）
  * - INSERTは6列×16行=96パラメータ以内でチャンク分割
+ *
+ * @returns 本日スナップショットが存在するリポジトリ数（0 = 対象なし）
  */
 export async function calculateAndUpsertMetricsBatch(
   db: DrizzleD1Database,
-  todaySnapshots: Array<{ repoId: number; stars: number }>,
   todayDate: string
-): Promise<void> {
-  if (todaySnapshots.length === 0) return;
-
-  const todayStarsMap = new Map(todaySnapshots.map((r) => [r.repoId, r.stars]));
+): Promise<number> {
   const sevenDaysAgoStr = getDaysAgoDate(todayDate, 7);
   const thirtyDaysAgoStr = getDaysAgoDate(todayDate, 30);
 
@@ -192,8 +193,13 @@ export async function calculateAndUpsertMetricsBatch(
   const snap7dAlias = alias(repoSnapshots, 'snap_7d');
   const snap30dAlias = alias(repoSnapshots, 'snap_30d');
 
-  // 7日前・30日前のスナップショットを並列取得（相互依存なし、1ラウンドトリップ削減）
-  const [snap7dRows, snap30dRows] = await Promise.all([
+  // 本日・7日前・30日前のスナップショットを3クエリ並列取得（1RTT）
+  // 呼び出し元での todaySnaps 事前取得（1RTT）を廃止し、3RTT → 2RTT へ削減
+  const [todayRows, snap7dRows, snap30dRows] = await Promise.all([
+    db
+      .select({ repoId: repoSnapshots.repoId, stars: repoSnapshots.stars })
+      .from(repoSnapshots)
+      .where(eq(repoSnapshots.snapshotDate, todayDate)),
     db
       .select({ repoId: snap7dAlias.repoId, stars: snap7dAlias.stars })
       .from(snapToday)
@@ -218,10 +224,13 @@ export async function calculateAndUpsertMetricsBatch(
       .where(eq(snapToday.snapshotDate, todayDate)),
   ]);
 
+  if (todayRows.length === 0) return 0;
+
+  const todayStarsMap = new Map(todayRows.map((r) => [r.repoId, r.stars]));
   const snap7dMap = new Map(snap7dRows.map((r) => [r.repoId, r.stars]));
   const snap30dMap = new Map(snap30dRows.map((r) => [r.repoId, r.stars]));
 
-  const metricsValues = todaySnapshots.map(({ repoId }) => {
+  const metricsValues = todayRows.map(({ repoId }) => {
     const currentStars = todayStarsMap.get(repoId)!;
     const stars7d = snap7dMap.get(repoId) ?? null;
     const stars30d = snap30dMap.get(repoId) ?? null;
@@ -250,6 +259,8 @@ export async function calculateAndUpsertMetricsBatch(
   );
   const batchItems = [deleteQuery, ...insertQueries] as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]];
   await db.batch(batchItems);
+
+  return todayRows.length;
 }
 
 /**
