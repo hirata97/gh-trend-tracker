@@ -342,11 +342,10 @@ describe('calculateAndUpsertMetricsBatch ベンチマーク', () => {
   });
 
   it('正確性確認: バッチ版でも計算結果が変わらない', async () => {
-    const todaySnaps = [
-      { repoId: 1, stars: 1010 },
-      { repoId: 2, stars: 1020 },
-    ];
-    await calculateAndUpsertMetricsBatch(db, todaySnaps, TODAY);
+    const count = await calculateAndUpsertMetricsBatch(db, TODAY);
+
+    // 前のdescribeブロックで挿入した行も含むため >= 2 を検証
+    expect(count).toBeGreaterThanOrEqual(2);
 
     const metrics = await db
       .select()
@@ -365,10 +364,10 @@ describe('calculateAndUpsertMetricsBatch ベンチマーク', () => {
     expect(m2!.stars30dIncrease).toBe(300);  // 1020 - 720
   });
 
-  it('シミュレーション: バッチ版 Promise.all 化により本番D1レイテンシ相当での改善率が2%以上', async () => {
-    // バッチ版のラウンドトリップモデル:
-    //   改善前（逐次）: snap7d + snap30d + db.batch = 3 RTT
-    //   改善後（並列）: [snap7d, snap30d] + db.batch = 2 RTT
+  it('シミュレーション: todaySnaps取得の内部並列化により本番D1レイテンシ相当での改善率が2%以上', async () => {
+    // RTTモデル:
+    //   改善前: [外部 todayFetch(1RTT)] + [[snap7d, snap30d]並列(1RTT)] + [batch(1RTT)] = 3 RTT
+    //   改善後: [[today, snap7d, snap30d]全並列(1RTT)] + [batch(1RTT)] = 2 RTT
     // 本番D1のRTT中央値: ~15ms（Cloudflare公式ドキュメント参照）
     // 理論改善率: 1/3 ≈ 33%
     const LATENCY_MS = 5; // テスト時間短縮のため5msに設定（本番は~15ms）
@@ -378,46 +377,50 @@ describe('calculateAndUpsertMetricsBatch ベンチマーク', () => {
       return new Promise((resolve) => setTimeout(() => resolve(value), LATENCY_MS));
     }
 
-    // 逐次実行（改善前）: snap7d → snap30d → batch
-    async function simulateSequentialBatch(): Promise<number> {
+    // 改善前: 外部todayFetch(逐次) + [snap7d, snap30d](並列) + batch = 3RTT
+    async function simulateBefore(): Promise<number> {
       const start = Date.now();
-      await withLatency('snap7d');
-      await withLatency('snap30d');
-      await withLatency('batch-delete-insert');
+      await withLatency('todayFetch');                                          // 1RTT (外部逐次)
+      await Promise.all([withLatency('snap7d'), withLatency('snap30d')]);       // 1RTT (内部並列)
+      await withLatency('batch-delete-insert');                                 // 1RTT
       return Date.now() - start;
     }
 
-    // 並列実行（改善後）: [snap7d, snap30d] 並列 → batch
-    async function simulateParallelBatch(): Promise<number> {
+    // 改善後: [today, snap7d, snap30d](全並列) + batch = 2RTT
+    async function simulateAfter(): Promise<number> {
       const start = Date.now();
-      await Promise.all([withLatency('snap7d'), withLatency('snap30d')]);
-      await withLatency('batch-delete-insert');
+      await Promise.all([
+        withLatency('today'),
+        withLatency('snap7d'),
+        withLatency('snap30d'),
+      ]);                                                                       // 1RTT (全並列)
+      await withLatency('batch-delete-insert');                                 // 1RTT
       return Date.now() - start;
     }
 
-    let seqTotal = 0;
-    let parTotal = 0;
+    let beforeTotal = 0;
+    let afterTotal = 0;
 
     for (let r = 0; r < RUNS; r++) {
       if (r % 2 === 0) {
-        seqTotal += await simulateSequentialBatch();
-        parTotal += await simulateParallelBatch();
+        beforeTotal += await simulateBefore();
+        afterTotal += await simulateAfter();
       } else {
-        parTotal += await simulateParallelBatch();
-        seqTotal += await simulateSequentialBatch();
+        afterTotal += await simulateAfter();
+        beforeTotal += await simulateBefore();
       }
     }
 
-    const seqAvg = seqTotal / RUNS;
-    const parAvg = parTotal / RUNS;
-    const improvementPct = ((seqAvg - parAvg) / seqAvg) * 100;
+    const beforeAvg = beforeTotal / RUNS;
+    const afterAvg = afterTotal / RUNS;
+    const improvementPct = ((beforeAvg - afterAvg) / beforeAvg) * 100;
 
-    // 理論値: 3RTT逐次 → 2RTT並列 = 1/3 ≈ 33% 削減
+    // 理論値: 3RTT → 2RTT = 1/3 ≈ 33% 削減
     console.log(
-      `[バッチ版 本番D1シミュレーション] ` +
-      `逐次: ${seqAvg.toFixed(1)}ms, 並列: ${parAvg.toFixed(1)}ms, ` +
+      `[バッチ版todaySnaps並列化 本番D1シミュレーション] ` +
+      `改善前(3RTT): ${beforeAvg.toFixed(1)}ms, 改善後(2RTT): ${afterAvg.toFixed(1)}ms, ` +
       `改善率: ${improvementPct.toFixed(1)}% ` +
-      `(${LATENCY_MS}ms/RTT, ${RUNS}回平均)`
+      `(${LATENCY_MS}ms/RTT, ${RUNS}回平均, 本番D1 RTT ~15ms想定で理論改善率33%)`
     );
 
     expect(improvementPct).toBeGreaterThanOrEqual(2);

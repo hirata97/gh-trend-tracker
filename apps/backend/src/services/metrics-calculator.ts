@@ -3,11 +3,9 @@
  * HTTPエンドポイントとCronトリガーの両方から呼び出される
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
 import type { BatchMetricsResponse } from '@gh-trend-tracker/shared';
 import { getTodayISO } from '../shared/utils';
-import { repoSnapshots } from '../db/schema';
-import { calculateAndUpsertMetricsBatch } from './batch-db';
+import { calculateAndUpsertMetricsBatch, getTodaySnapshots } from './batch-db';
 
 export interface MetricsCalculateOptions {
   db: DrizzleD1Database;
@@ -24,13 +22,27 @@ export async function runMetricsCalculation(
   const startTime = Date.now();
   const todayDate = getTodayISO();
 
-  // 本日のスナップショットがあるリポジトリID・スター数を一括取得（初回クエリでstarsも取得し後続クエリを削減）
-  const todaySnaps = await db
-    .select({ repoId: repoSnapshots.repoId, stars: repoSnapshots.stars })
-    .from(repoSnapshots)
-    .where(eq(repoSnapshots.snapshotDate, todayDate));
+  let success = 0;
+  const skipped = 0;
+  let errors = 0;
+  let total = 0;
 
-  if (todaySnaps.length === 0) {
+  try {
+    // todaySnaps取得をcalculateAndUpsertMetricsBatch内で7d/30dと並列実行（3RTT→2RTT）
+    success = await calculateAndUpsertMetricsBatch(db, todayDate);
+    total = success;
+  } catch (error) {
+    // エラー時のみ件数を問い合わせて正確な total/errors を設定（成功パスにRTT影響なし）
+    const snaps = await getTodaySnapshots(db, todayDate).catch(() => []);
+    total = snaps.length;
+    errors = snaps.length || 1;
+    console.error(
+      `バッチメトリクス計算エラー: ${error instanceof Error ? error.message : error}`,
+      error instanceof Error ? error.stack : undefined
+    );
+  }
+
+  if (total === 0 && errors === 0) {
     return {
       message: 'No repositories with snapshots for today',
       summary: {
@@ -44,26 +56,10 @@ export async function runMetricsCalculation(
     };
   }
 
-  let success = 0;
-  const skipped = 0;
-  let errors = 0;
-
-  try {
-    // JOINバッチ化でN+1クエリ問題を解消（O(5N)クエリ → O(N/16+4)クエリ）
-    await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
-    success = todaySnaps.length;
-  } catch (error) {
-    errors = todaySnaps.length;
-    console.error(
-      `バッチメトリクス計算エラー: ${error instanceof Error ? error.message : error}`,
-      error instanceof Error ? error.stack : undefined
-    );
-  }
-
   return {
     message: 'Metrics calculation completed',
     summary: {
-      total: todaySnaps.length,
+      total,
       success,
       skipped,
       errors,
