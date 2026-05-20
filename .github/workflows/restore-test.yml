@@ -1,0 +1,154 @@
+name: 月次リストアテスト
+
+on:
+  # 毎月1日 UTC 03:00 に実行（日本時間 12:00 PM）
+  schedule:
+    - cron: '0 3 1 * *'
+
+  # 手動実行を許可（動作確認・任意の日付でのテスト用）
+  workflow_dispatch:
+    inputs:
+      backup_date:
+        description: '対象バックアップ日付 (YYYY-MM-DD形式。空白で最新バックアップを使用)'
+        required: false
+        default: ''
+
+# ⚠️ このワークフローは gh-trends-db-dev（開発用DB）を一度初期化してからリストアします。
+# 実行中は開発DBが一時的に破壊状態になるため、開発作業中は手動実行を避けてください。
+
+# 同時実行を防止: 開発DBへの並行リストアでテーブルが競合しないよう1実行のみ許可
+concurrency:
+  group: restore-test-dev-db
+  cancel-in-progress: false
+
+jobs:
+  restore-test:
+    name: Restore Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.js セットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 依存関係をインストール
+        run: npm ci
+
+      - name: R2から最新バックアップを取得
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          R2_ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          INPUT_DATE="${{ inputs.backup_date }}"
+
+          if [ -n "${INPUT_DATE}" ]; then
+            FILENAME="gh-trends-db_${INPUT_DATE}.sql.gz"
+            echo "指定日付のバックアップを使用: ${FILENAME}"
+          else
+            FILENAME=$(aws s3 ls "s3://gh-trends-backups/" \
+              --endpoint-url "${R2_ENDPOINT}" \
+              --region auto \
+              | grep '\.sql\.gz$' | sort | tail -1 | awk '{print $4}')
+            echo "最新バックアップを使用: ${FILENAME}"
+          fi
+
+          if [ -z "${FILENAME}" ]; then
+            echo "::error::バックアップファイルが見つかりません"
+            exit 1
+          fi
+
+          echo "BACKUP_FILENAME=${FILENAME}" >> "$GITHUB_ENV"
+
+          aws s3 cp \
+            "s3://gh-trends-backups/${FILENAME}" \
+            "/tmp/${FILENAME}" \
+            --endpoint-url "${R2_ENDPOINT}" \
+            --region auto
+
+      - name: バックアップを解凍
+        run: |
+          COMPRESSED="/tmp/${{ env.BACKUP_FILENAME }}"
+          gunzip "${COMPRESSED}"
+          SQL_FILE="${COMPRESSED%.gz}"
+          echo "SQL_FILE=${SQL_FILE}" >> "$GITHUB_ENV"
+          echo "解凍完了: ${SQL_FILE} ($(wc -c < "${SQL_FILE}") bytes)"
+
+      - name: 開発DBの全テーブルを初期化
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          # FK依存を考慮した順序でドロップ（repo_snapshots は repositories に依存）
+          cat > /tmp/drop-tables.sql << 'SQLEOF'
+          DROP TABLE IF EXISTS repo_snapshots;
+          DROP TABLE IF EXISTS metrics_daily;
+          DROP TABLE IF EXISTS ranking_weekly;
+          DROP TABLE IF EXISTS users;
+          DROP TABLE IF EXISTS repositories;
+          DROP TABLE IF EXISTS languages;
+          SQLEOF
+
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file=/tmp/drop-tables.sql
+
+          echo "全テーブルのドロップ完了"
+
+      - name: バックアップSQLを開発DBに適用
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file="${{ env.SQL_FILE }}"
+
+          echo "バックアップの適用完了"
+
+      - name: 整合性チェックを実行
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: npm run db:check -- --remote --env development
+
+      - name: 失敗時にGitHub Issueを起票
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const today = new Date().toISOString().slice(0, 10);
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const backupFile = process.env.BACKUP_FILENAME || '不明';
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[障害] 月次リストアテスト失敗 ${today}`,
+              body: [
+                '## 月次リストアテストが失敗しました',
+                '',
+                `- **実行日時**: ${new Date().toISOString()}`,
+                `- **バックアップファイル**: ${backupFile}`,
+                `- **ワークフロー実行**: ${runUrl}`,
+                '',
+                '## 対応手順',
+                '',
+                '1. [ワークフローログ](' + runUrl + ') を確認して失敗ステップを特定',
+                '2. [障害対応Runbook](../blob/main/docs/プロセス/障害対応Runbook.md) を参照',
+                '3. 必要に応じてバックアップから手動リストア実施',
+              ].join('\n'),
+            });
