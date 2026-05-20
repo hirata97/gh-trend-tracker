@@ -16,6 +16,11 @@ on:
 # ⚠️ このワークフローは gh-trends-db-dev（開発用DB）を一度初期化してからリストアします。
 # 実行中は開発DBが一時的に破壊状態になるため、開発作業中は手動実行を避けてください。
 
+# 同時実行を防止: 開発DBへの並行リストアでテーブルが競合しないよう1実行のみ許可
+concurrency:
+  group: restore-test-dev-db
+  cancel-in-progress: false
+
 jobs:
   restore-test:
     name: Restore Test
