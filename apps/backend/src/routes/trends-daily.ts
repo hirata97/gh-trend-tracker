@@ -68,52 +68,53 @@ trendsDaily.get('/', async (c) => {
     } as const;
 
     const sortColumn = sortColumnMap[sort_by];
-
-    // 総件数を取得（メインクエリと同じ3テーブルJOINで正確にカウント）
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(metricsDaily)
-      .innerJoin(repositories, eq(metricsDaily.repoId, repositories.repoId))
-      .innerJoin(
-        repoSnapshots,
-        and(
-          eq(repoSnapshots.repoId, metricsDaily.repoId),
-          eq(repoSnapshots.snapshotDate, snapshotDate)
-        )
-      )
-      .where(and(...conditions));
-
-    const total = countResult?.count ?? 0;
-    const totalPages = Math.ceil(total / limit);
+    // offsetはリクエストパラメータのみから決まるため、DBクエリ前に計算可能
     const offset = (page - 1) * limit;
 
-    // メインクエリ: metrics_daily + repositories + repo_snapshots をJOIN
-    const results = await db
-      .select({
-        repoId: repositories.repoId,
-        fullName: repositories.fullName,
-        description: repositories.description,
-        language: repositories.language,
-        forks: repoSnapshots.forks,
-        stars: repoSnapshots.stars,
-        stars7dIncrease: metricsDaily.stars7dIncrease,
-        stars30dIncrease: metricsDaily.stars30dIncrease,
-        stars7dRate: metricsDaily.stars7dRate,
-        stars30dRate: metricsDaily.stars30dRate,
-      })
-      .from(metricsDaily)
-      .innerJoin(repositories, eq(metricsDaily.repoId, repositories.repoId))
-      .innerJoin(
-        repoSnapshots,
-        and(
-          eq(repoSnapshots.repoId, metricsDaily.repoId),
-          eq(repoSnapshots.snapshotDate, snapshotDate)
+    // 総件数クエリとメインクエリを並列実行（相互依存なし、1 RTT削減）
+    const [countRows, results] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(metricsDaily)
+        .innerJoin(repositories, eq(metricsDaily.repoId, repositories.repoId))
+        .innerJoin(
+          repoSnapshots,
+          and(
+            eq(repoSnapshots.repoId, metricsDaily.repoId),
+            eq(repoSnapshots.snapshotDate, snapshotDate)
+          )
         )
-      )
-      .where(and(...conditions))
-      .orderBy(desc(sortColumn))
-      .limit(limit)
-      .offset(offset);
+        .where(and(...conditions)),
+      db
+        .select({
+          repoId: repositories.repoId,
+          fullName: repositories.fullName,
+          description: repositories.description,
+          language: repositories.language,
+          forks: repoSnapshots.forks,
+          stars: repoSnapshots.stars,
+          stars7dIncrease: metricsDaily.stars7dIncrease,
+          stars30dIncrease: metricsDaily.stars30dIncrease,
+          stars7dRate: metricsDaily.stars7dRate,
+          stars30dRate: metricsDaily.stars30dRate,
+        })
+        .from(metricsDaily)
+        .innerJoin(repositories, eq(metricsDaily.repoId, repositories.repoId))
+        .innerJoin(
+          repoSnapshots,
+          and(
+            eq(repoSnapshots.repoId, metricsDaily.repoId),
+            eq(repoSnapshots.snapshotDate, snapshotDate)
+          )
+        )
+        .where(and(...conditions))
+        .orderBy(desc(sortColumn))
+        .limit(limit)
+        .offset(offset),
+    ]);
+
+    const total = countRows[0]?.count ?? 0;
+    const totalPages = Math.ceil(total / limit);
 
     // レスポンスをIssue仕様に合わせてマッピング
     const data = results.map((row) => ({
