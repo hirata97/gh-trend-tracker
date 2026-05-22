@@ -1,0 +1,213 @@
+name: 月次リストアテスト
+
+# ⚠️ このワークフローは gh-trends-db-dev（開発用D1）を完全にリセットします。
+# 実行中は開発環境のDBが一時的に破壊されます。詳細は docs/プロセス/GitHubActions設定.md を参照。
+
+on:
+  # 毎月1日 UTC 03:00 に自動実行（日本時間 12:00 正午）
+  schedule:
+    - cron: '0 3 1 * *'
+
+  # 手動実行を許可（動作確認・緊急時用）
+  workflow_dispatch:
+
+jobs:
+  restore-test:
+    name: D1リストアテスト
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.js をセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 依存関係をインストール
+        run: npm ci
+
+      - name: 開発用D1のデータベースIDを設定
+        env:
+          DEV_D1_DATABASE_ID: ${{ secrets.DEV_D1_DATABASE_ID }}
+        working-directory: apps/backend
+        run: |
+          sed -i "s|REPLACE_WITH_DEV_D1_DATABASE_ID|${DEV_D1_DATABASE_ID}|" wrangler.jsonc
+          echo "wrangler.jsonc の開発用D1 IDを設定しました"
+
+      - name: R2 から最新バックアップを検索
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          LATEST=$(aws s3 ls "s3://gh-trends-backups/" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto | sort | tail -1 | awk '{print $4}')
+          if [ -z "${LATEST}" ]; then
+            echo "::error::R2 にバックアップファイルが見つかりません"
+            exit 1
+          fi
+          echo "BACKUP_FILENAME=${LATEST}" >> "$GITHUB_ENV"
+          echo "最新バックアップ: ${LATEST}"
+
+      - name: R2 からバックアップをダウンロード
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          aws s3 cp \
+            "s3://gh-trends-backups/${{ env.BACKUP_FILENAME }}" \
+            "/tmp/${{ env.BACKUP_FILENAME }}" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto
+          echo "ダウンロード完了: /tmp/${{ env.BACKUP_FILENAME }}"
+
+      - name: バックアップファイルを解凍
+        run: |
+          gzip -d "/tmp/${{ env.BACKUP_FILENAME }}"
+          BACKUP="${{ env.BACKUP_FILENAME }}"
+          SQL_FILE="${BACKUP%.gz}"
+          echo "SQL_FILENAME=${SQL_FILE}" >> "$GITHUB_ENV"
+          echo "解凍完了: /tmp/${SQL_FILE}"
+          ls -lh "/tmp/${SQL_FILE}"
+
+      - name: dev D1 を初期化（全テーブル削除）
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          # ⚠️ リストアテスト用に dev DB を完全リセット（本番DBには影響しない）
+          # 外部キー依存関係の順に削除
+          cat > /tmp/reset-dev-db.sql << 'SQL'
+          DROP TABLE IF EXISTS ai_summaries;
+          DROP TABLE IF EXISTS users;
+          DROP TABLE IF EXISTS ranking_weekly;
+          DROP TABLE IF EXISTS metrics_daily;
+          DROP TABLE IF EXISTS repo_snapshots;
+          DROP TABLE IF EXISTS repositories;
+          DROP TABLE IF EXISTS languages;
+          DROP TABLE IF EXISTS __drizzle_migrations;
+          SQL
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file=/tmp/reset-dev-db.sql
+          echo "dev DB の初期化完了"
+
+      - name: バックアップ SQL を dev D1 に適用
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file="/tmp/${{ env.SQL_FILENAME }}"
+          echo "バックアップの適用完了"
+
+      - name: 整合性チェックを実行
+        id: integrity-check
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          FAILED=false
+
+          # テーブルの行数を取得するヘルパー関数
+          get_count() {
+            npx wrangler d1 execute gh-trends-db-dev \
+              --env development \
+              --remote \
+              --json \
+              --command "SELECT COUNT(*) as cnt FROM $1;" 2>/dev/null \
+              | jq -r '.[0].results[0].cnt // "0"'
+          }
+
+          REPOS=$(get_count "repositories")
+          METRICS=$(get_count "metrics_daily")
+          RANKINGS=$(get_count "ranking_weekly")
+          LANGUAGES=$(get_count "languages")
+
+          # 最新レコードのタイムスタンプを確認
+          LATEST_REPO=$(npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --json \
+            --command "SELECT MAX(updated_at) as latest FROM repositories;" 2>/dev/null \
+            | jq -r '.[0].results[0].latest // "N/A"')
+
+          LATEST_METRIC=$(npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --json \
+            --command "SELECT MAX(calculated_date) as latest FROM metrics_daily;" 2>/dev/null \
+            | jq -r '.[0].results[0].latest // "N/A"')
+
+          echo "=== 整合性チェック結果 ==="
+          echo "repositories:   ${REPOS} 件 (最終更新: ${LATEST_REPO})"
+          echo "metrics_daily:  ${METRICS} 件 (最終計算: ${LATEST_METRIC})"
+          echo "ranking_weekly: ${RANKINGS} 件"
+          echo "languages:      ${LANGUAGES} 件"
+
+          # 各テーブルの異常を検知
+          if [ "${REPOS}" -lt 1 ]; then
+            echo "::error::repositories テーブルにデータがありません"
+            FAILED=true
+          fi
+          if [ "${METRICS}" -lt 1 ]; then
+            echo "::error::metrics_daily テーブルにデータがありません"
+            FAILED=true
+          fi
+          if [ "${RANKINGS}" -lt 1 ]; then
+            echo "::error::ranking_weekly テーブルにデータがありません"
+            FAILED=true
+          fi
+          if [ "${LANGUAGES}" -lt 1 ]; then
+            echo "::error::languages テーブルにデータがありません"
+            FAILED=true
+          fi
+
+          if [ "${FAILED}" = "true" ]; then
+            echo "整合性チェック: 失敗"
+            exit 1
+          fi
+
+          echo "整合性チェック: 全テーブル正常"
+
+      - name: 失敗時に GitHub Issue を自動起票
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().slice(0, 10);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[自動起票] 月次リストアテスト失敗 - ${date}`,
+              body: [
+                '## 月次リストアテストが失敗しました',
+                '',
+                `**実行日時**: ${new Date().toISOString()}`,
+                `**ワークフロー実行**: [${context.workflow} #${context.runNumber}](${runUrl})`,
+                '',
+                '## 確認事項',
+                '- [ ] R2 バケット `gh-trends-backups` にバックアップファイルが存在するか',
+                '- [ ] 開発用 D1 データベース `gh-trends-db-dev` へのアクセスが正常か',
+                '- [ ] バックアップ SQL ファイルの整合性',
+                '- [ ] シークレット `CLOUDFLARE_API_TOKEN` の有効性',
+                '- [ ] シークレット `DEV_D1_DATABASE_ID` が正しく設定されているか',
+                '',
+                '## 次のアクション',
+                '[障害対応Runbook](../blob/main/docs/プロセス/障害対応Runbook.md) を参照してください。',
+              ].join('\n'),
+              labels: ['bug', 'priority: high'],
+            });

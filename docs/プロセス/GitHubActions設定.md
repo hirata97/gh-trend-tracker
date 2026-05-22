@@ -344,6 +344,73 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 
 ---
 
+## 月次リストアテスト（restore-test.yml）
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00 に R2 バックアップから開発用 D1 へのリストアを自動検証します。
+
+> ⚠️ **注意**: このワークフロー実行中は **gh-trends-db-dev（開発用D1）が完全にリセット**されます。
+> リストアテスト中は開発環境のDBが一時的に破壊されるため、実行タイミングに注意してください。
+
+### リストアテストフロー
+
+```
+毎月1日 UTC 03:00（またはworkflow_dispatch）
+  └─ restore-test ジョブ
+       ├─ wrangler.jsonc に DEV_D1_DATABASE_ID を設定
+       ├─ R2 から最新バックアップ（gh-trends-db_YYYY-MM-DD.sql.gz）を取得
+       ├─ gzip 解凍 → /tmp/gh-trends-db_YYYY-MM-DD.sql
+       ├─ dev D1 を全テーブル削除（リセット）
+       ├─ バックアップ SQL を dev D1 に適用
+       ├─ 整合性チェック（主要4テーブルの行数 + 最新タイムスタンプ確認）
+       └─ 失敗時 → GitHub Issue を自動起票
+```
+
+### 整合性チェック内容
+
+| テーブル | チェック内容 |
+| --- | --- |
+| `repositories` | 行数 ≥ 1 ＋ 最新 `updated_at` を表示 |
+| `metrics_daily` | 行数 ≥ 1 ＋ 最新 `calculated_date` を表示 |
+| `ranking_weekly` | 行数 ≥ 1 |
+| `languages` | 行数 ≥ 1 |
+
+### 追加シークレットの設定
+
+リストアテスト用に **開発用D1データベースID** をシークレットとして追加します。
+
+#### DEV_D1_DATABASE_ID の取得
+
+1. 開発用D1を作成済みの場合、Cloudflare ダッシュボード → **Workers & Pages** → **D1** から `gh-trends-db-dev` のデータベースIDをコピー
+2. または以下のコマンドで確認：
+   ```bash
+   npx wrangler d1 list
+   ```
+
+#### GitHub Secrets への登録
+
+| シークレット名 | 値 |
+| --- | --- |
+| `DEV_D1_DATABASE_ID` | 開発用D1（gh-trends-db-dev）のデータベースID |
+
+> `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`R2_BACKUP_ACCESS_KEY_ID`、`R2_BACKUP_SECRET_ACCESS_KEY` は既存のシークレットを流用します。
+
+### 手動実行でテスト
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"月次リストアテスト"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. 実行ログで `整合性チェック: 全テーブル正常` が表示されることを確認
+
+### 失敗時の自動起票
+
+整合性チェックが失敗した場合、以下の内容で GitHub Issue が自動起票されます：
+
+- タイトル: `[自動起票] 月次リストアテスト失敗 - YYYY-MM-DD`
+- ラベル: `bug`, `priority: high`
+- 本文: 確認事項チェックリスト ＋ ワークフロー実行リンク
+
+---
+
 ## 自動デプロイ（deploy.yml）
 
 `.github/workflows/deploy.yml` は `main` ブランチへの push 時または手動トリガーで自動デプロイを実行します。
