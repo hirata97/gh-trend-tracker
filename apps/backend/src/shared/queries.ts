@@ -61,27 +61,24 @@ function calculateWeeklyGrowthRate(
 
 /**
  * リポジトリ詳細情報を取得（スター増加率付き）
- * 最適化：1つのクエリで全てのスナップショットを取得
+ * 最適化：repositoriesクエリとrepoSnapshotsクエリをPromise.allで並列化（2RTT→1RTT）
  */
 export async function getRepositoryDetail(db: DrizzleD1Database, repoId: number) {
-  // リポジトリ基本情報を取得
-  const [repository] = await db
-    .select()
-    .from(repositories)
-    .where(eq(repositories.repoId, repoId))
-    .limit(1);
+  // リポジトリ基本情報とスナップショットを並列取得（相互依存なし）
+  const [repositoryRows, snapshots] = await Promise.all([
+    db.select().from(repositories).where(eq(repositories.repoId, repoId)).limit(1),
+    db
+      .select()
+      .from(repoSnapshots)
+      .where(eq(repoSnapshots.repoId, repoId))
+      .orderBy(desc(repoSnapshots.snapshotDate))
+      .limit(7),
+  ]);
 
+  const repository = repositoryRows[0];
   if (!repository) {
     return null;
   }
-
-  // 最新7件のスナップショットを一度に取得（最新と7日前を含む）
-  const snapshots = await db
-    .select()
-    .from(repoSnapshots)
-    .where(eq(repoSnapshots.repoId, repoId))
-    .orderBy(desc(repoSnapshots.snapshotDate))
-    .limit(7);
 
   const todaySnapshot = snapshots[0] ?? null;
   const weekAgoSnapshot = snapshots[6] ?? null;
