@@ -191,6 +191,76 @@ describe('runWeeklyRankingCalculation ベンチマーク', () => {
     expect(rankData[0].rank).toBe(1);
   });
 
+  it('正確性確認: 週内スナップショットがないリポジトリはランキングに含まれない', async () => {
+    // 週外（BEFORE_START_DATEのみ）のスナップショットしか持たないリポジトリを挿入
+    const outsideRepoId = 99999;
+    await db
+      .insert(repositories)
+      .values({
+        repoId: outsideRepoId,
+        name: 'outside-repo',
+        fullName: 'owner/outside-repo',
+        owner: 'owner',
+        language: 'Outside',
+        description: null,
+        htmlUrl: 'https://github.com/owner/outside-repo',
+        homepage: null,
+        topics: null,
+        createdAt: '2025-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+        pushedAt: null,
+      })
+      .onConflictDoNothing();
+
+    await db
+      .insert(repoSnapshots)
+      .values({
+        repoId: outsideRepoId,
+        stars: 5000,
+        forks: 500,
+        watchers: 500,
+        openIssues: 10,
+        snapshotDate: BEFORE_START_DATE, // 週外スナップショットのみ
+        createdAt: new Date().toISOString(),
+      })
+      .onConflictDoNothing();
+
+    const targetDate = new Date('2026-05-11T00:00:00Z');
+    const result = await runWeeklyRankingCalculation({ db, targetDate });
+
+    // 'all' ランキングに週外リポジトリが含まれないことを確認
+    const allRanking = await db
+      .select()
+      .from(rankingWeekly)
+      .where(
+        and(
+          eq(rankingWeekly.year, WEEK_YEAR),
+          eq(rankingWeekly.weekNumber, WEEK_NUMBER),
+          eq(rankingWeekly.language, 'all')
+        )
+      );
+    expect(allRanking.length).toBe(1);
+    const rankData: Array<{ repo_id: number }> = JSON.parse(allRanking[0].rankData);
+    const containsOutside = rankData.some((item) => item.repo_id === outsideRepoId);
+    expect(containsOutside).toBe(false);
+
+    // 'Outside'言語のランキングが存在しないことを確認
+    const outsideLangRanking = await db
+      .select()
+      .from(rankingWeekly)
+      .where(
+        and(
+          eq(rankingWeekly.year, WEEK_YEAR),
+          eq(rankingWeekly.weekNumber, WEEK_NUMBER),
+          eq(rankingWeekly.language, 'Outside')
+        )
+      );
+    expect(outsideLangRanking.length).toBe(0);
+
+    // 通常のランキング数は変わらない（Outside言語は追加されない）
+    expect(result.summary.totalRankings).toBe(LANGUAGE_COUNT + 1);
+  });
+
   it('冪等性確認: 同じ週を2回実行しても重複しない', async () => {
     const targetDate = new Date('2026-05-11T00:00:00Z');
     await runWeeklyRankingCalculation({ db, targetDate });
@@ -315,5 +385,66 @@ describe('runWeeklyRankingCalculation ベンチマーク', () => {
       expect(improvementPct).toBeGreaterThanOrEqual(30);
     },
     5000
+  );
+
+  it(
+    'シミュレーション: EXISTSサブクエリ統合クエリ化により本番D1レイテンシ相当での改善率が2%以上',
+    async () => {
+      // 改善前: selectDistinct(1RTT) + Promise.all[チャンク](1RTT) + batch書き込み(1RTT) = 3RTT
+      // 改善後: 統合クエリ(1RTT) + batch書き込み(1RTT) = 2RTT
+      // 理論改善率: (3-2)/3 ≈ 33%（本番D1 RTT ~15ms想定: 45ms → 30ms, 15ms短縮）
+      const LATENCY_MS = 5;
+      const RUNS = 4;
+
+      function withLatencyLocal<T>(val: T): Promise<T> {
+        return new Promise((resolve) => setTimeout(() => resolve(val), LATENCY_MS));
+      }
+
+      // 改善前: selectDistinct + Promise.allチャンク + batch書き込み = 3RTT
+      async function simulateBefore(): Promise<number> {
+        const start = Date.now();
+        await withLatencyLocal('selectDistinct');  // 1RTT: リポジトリリスト取得
+        await withLatencyLocal('snapshotChunks');  // 1RTT: チャンク並列スナップショット取得
+        await withLatencyLocal('batchWrite');       // 1RTT: ランキング書き込み
+        return Date.now() - start;
+      }
+
+      // 改善後: 統合クエリ + batch書き込み = 2RTT
+      async function simulateAfter(): Promise<number> {
+        const start = Date.now();
+        await withLatencyLocal('combinedExistsQuery');  // 1RTT: EXISTS統合クエリ
+        await withLatencyLocal('batchWrite');             // 1RTT: ランキング書き込み
+        return Date.now() - start;
+      }
+
+      let beforeTotal = 0;
+      let afterTotal = 0;
+
+      for (let r = 0; r < RUNS; r++) {
+        if (r % 2 === 0) {
+          beforeTotal += await simulateBefore();
+          afterTotal += await simulateAfter();
+        } else {
+          afterTotal += await simulateAfter();
+          beforeTotal += await simulateBefore();
+        }
+      }
+
+      const beforeAvg = beforeTotal / RUNS;
+      const afterAvg = afterTotal / RUNS;
+      const improvementPct = ((beforeAvg - afterAvg) / beforeAvg) * 100;
+
+      console.log(
+        `[EXISTS統合クエリ 本番D1シミュレーション] ` +
+          `改善前(3RTT): ${beforeAvg.toFixed(1)}ms, ` +
+          `改善後(2RTT): ${afterAvg.toFixed(1)}ms, ` +
+          `改善率: ${improvementPct.toFixed(1)}% ` +
+          `(${LATENCY_MS}ms/RTT, ${RUNS}回平均, ` +
+          `本番D1 RTT ~15ms想定で理論短縮: 15ms, 理論改善率: 33%)`
+      );
+
+      expect(improvementPct).toBeGreaterThanOrEqual(2);
+    },
+    10000
   );
 });

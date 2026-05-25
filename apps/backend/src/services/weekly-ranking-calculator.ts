@@ -4,7 +4,7 @@
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { eq, and, between, lte, desc, inArray } from 'drizzle-orm';
+import { eq, and, lte, desc, sql } from 'drizzle-orm';
 import type { BatchWeeklyRankingResponse, WeeklyRankEntry } from '@gh-trend-tracker/shared';
 import { repositories, repoSnapshots, rankingWeekly } from '../db/schema';
 
@@ -72,16 +72,25 @@ export async function runWeeklyRankingCalculation(
   const { year, weekNumber } = getISOWeekInfo(lastWeek);
   const { startDate, endDate } = getISOWeekRange(year, weekNumber);
 
-  // 対象週にスナップショットが存在するリポジトリを取得
-  const reposWithSnapshots = await db
-    .selectDistinct({
-      repoId: repositories.repoId,
+  // selectDistinct(1RTT) + Promise.allチャンクSELECT(1RTT) → EXISTSサブクエリ統合(1RTT) に削減
+  // D1バインド上限回避のためのrepoIdチャンク分割が不要になり、コードも簡潔になる
+  const allSnapshotsWithRepoInfo = await db
+    .select({
+      repoId: repoSnapshots.repoId,
       fullName: repositories.fullName,
       language: repositories.language,
+      snapshotDate: repoSnapshots.snapshotDate,
+      stars: repoSnapshots.stars,
     })
-    .from(repositories)
-    .innerJoin(repoSnapshots, eq(repositories.repoId, repoSnapshots.repoId))
-    .where(between(repoSnapshots.snapshotDate, startDate, endDate));
+    .from(repoSnapshots)
+    .innerJoin(repositories, eq(repositories.repoId, repoSnapshots.repoId))
+    .where(
+      and(
+        lte(repoSnapshots.snapshotDate, endDate),
+        sql`EXISTS (SELECT 1 FROM repo_snapshots ws WHERE ws.repo_id = ${repoSnapshots.repoId} AND ws.snapshot_date BETWEEN ${startDate} AND ${endDate})`
+      )
+    )
+    .orderBy(repoSnapshots.repoId, desc(repoSnapshots.snapshotDate));
 
   // 各リポジトリの週間スター増加数を計算
   const repoGrowth: Array<{
@@ -91,48 +100,23 @@ export async function runWeeklyRankingCalculation(
     starIncrease: number;
   }> = [];
 
-  const repoIds = reposWithSnapshots.map((repo) => repo.repoId);
+  // リポジトリ情報とスナップショットMapをSQLソート済み結果から1パスで構築
+  const repoInfoMap = new Map<number, { repoId: number; fullName: string; language: string | null }>();
   const snapshotsByRepo = new Map<number, Array<{ snapshotDate: string; stars: number }>>();
 
-  if (repoIds.length > 0) {
-    // Cloudflare D1 のバインド上限（約100）を回避するため、repoId をチャンクに分割する
-    // 各チャンクは相互依存がないため Promise.all で並列実行（逐次O(N/100)RTT → O(1)RTT）
-    // D1 の同時サブリクエスト上限（約6）以内に収まるよう BIND_PARAM_LIMIT=100 でチャンク数を管理する
-    const BIND_PARAM_LIMIT = 100;
-    const chunks: number[][] = [];
-    for (let i = 0; i < repoIds.length; i += BIND_PARAM_LIMIT) {
-      chunks.push(repoIds.slice(i, i + BIND_PARAM_LIMIT));
+  for (const row of allSnapshotsWithRepoInfo) {
+    if (!repoInfoMap.has(row.repoId)) {
+      repoInfoMap.set(row.repoId, { repoId: row.repoId, fullName: row.fullName, language: row.language });
     }
-
-    const chunkResults = await Promise.all(
-      chunks.map((chunk) =>
-        db
-          .select({
-            repoId: repoSnapshots.repoId,
-            snapshotDate: repoSnapshots.snapshotDate,
-            stars: repoSnapshots.stars,
-          })
-          .from(repoSnapshots)
-          .where(and(inArray(repoSnapshots.repoId, chunk), lte(repoSnapshots.snapshotDate, endDate)))
-          .orderBy(repoSnapshots.repoId, desc(repoSnapshots.snapshotDate))
-      )
-    );
-    const allSnapshots = chunkResults.flat();
-
-    // 安全のため、repoId昇順・snapshotDate降順でソートしてからMapに格納する
-    allSnapshots.sort((a, b) =>
-      a.repoId === b.repoId ? b.snapshotDate.localeCompare(a.snapshotDate) : a.repoId - b.repoId
-    );
-
-    for (const snap of allSnapshots) {
-      const list = snapshotsByRepo.get(snap.repoId);
-      if (list) {
-        list.push({ snapshotDate: snap.snapshotDate, stars: snap.stars });
-      } else {
-        snapshotsByRepo.set(snap.repoId, [{ snapshotDate: snap.snapshotDate, stars: snap.stars }]);
-      }
+    const list = snapshotsByRepo.get(row.repoId);
+    if (list) {
+      list.push({ snapshotDate: row.snapshotDate, stars: row.stars });
+    } else {
+      snapshotsByRepo.set(row.repoId, [{ snapshotDate: row.snapshotDate, stars: row.stars }]);
     }
   }
+
+  const reposWithSnapshots = Array.from(repoInfoMap.values());
 
   for (const repo of reposWithSnapshots) {
     const snapshots = snapshotsByRepo.get(repo.repoId) ?? [];
