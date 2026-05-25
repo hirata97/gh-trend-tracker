@@ -344,6 +344,58 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 
 ---
 
+## 月次D1リストアテスト（restore-test.yml）
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00（日本時間 12:00）に R2 バックアップから dev D1 へリストアし、整合性を検証します。
+
+> ⚠️ **注意**: このワークフローは **dev D1（`gh-trends-db-dev`）のデータを全て削除してリストアします**。
+> 実行中は dev D1 への書き込みを避けてください。本番D1（`gh-trends-db`）は影響を受けません。
+
+### リストアテストフロー
+
+```
+毎月1日 UTC 03:00（または手動）
+  └─ restore-test ジョブ
+       ├─ R2から最新バックアップ（*.sql.gz）を取得
+       ├─ gunzip で展開
+       ├─ dev D1 を初期化（全テーブル DROP）
+       ├─ バックアップSQLを dev D1 に適用（wrangler d1 execute --file）
+       ├─ 整合性チェック
+       │    ├─ repositories: 件数 > 0 + 最新 updated_at
+       │    ├─ metrics_daily: 件数 > 0 + 最新 calculated_date
+       │    ├─ ranking_weekly: 件数 > 0 + 最新 created_at
+       │    └─ languages: 件数 > 0
+       └─ 失敗時: GitHub Issue を自動起票
+```
+
+### 必要なシークレット
+
+バックアップワークフロー（`backup-d1.yml`）と同じシークレットを使用します。追加設定は不要です。
+
+| シークレット名 | 用途 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | dev D1 への wrangler d1 execute 実行権限 |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare アカウント識別 |
+| `R2_BACKUP_ACCESS_KEY_ID` | R2 バックアップファイルのダウンロード |
+| `R2_BACKUP_SECRET_ACCESS_KEY` | R2 バックアップファイルのダウンロード |
+
+### 手動実行でテスト
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"Monthly D1 Restore Test"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. 実行ログで全テーブルの整合性チェックが `✓` になることを確認
+
+### 失敗時の対応
+
+ワークフローが失敗すると GitHub Issue が自動起票されます（ラベル: `bug`）。
+
+1. 起票された Issue のリンクからワークフローログを確認する
+2. 問題を修正後、`workflow_dispatch` で手動再実行する
+3. 詳細な復旧手順は [障害対応Runbook](./障害対応Runbook.md) を参照
+
+---
+
 ## 自動デプロイ（deploy.yml）
 
 `.github/workflows/deploy.yml` は `main` ブランチへの push 時または手動トリガーで自動デプロイを実行します。
