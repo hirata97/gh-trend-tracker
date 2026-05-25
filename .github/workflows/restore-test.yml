@@ -1,0 +1,201 @@
+name: Monthly D1 Restore Test
+
+# ⚠️ このワークフローは dev D1（gh-trends-db-dev）のデータを全て削除してリストアします。
+# 実行中は開発DBへの書き込みを避けてください。
+
+on:
+  # 毎月1日 UTC 03:00 に実行（日本時間 12:00）
+  schedule:
+    - cron: '0 3 1 * *'
+
+  # 手動実行（動作確認用）
+  workflow_dispatch:
+
+jobs:
+  restore-test:
+    name: Restore and Integrity Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.js セットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 依存関係インストール
+        run: npm ci
+
+      - name: R2から最新バックアップを取得・展開
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          R2_ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          # 最新バックアップファイル名を取得
+          LATEST=$(aws s3 ls "s3://gh-trends-backups/" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --region auto \
+            | grep '\.sql\.gz$' \
+            | sort \
+            | tail -n 1 \
+            | awk '{print $4}')
+
+          if [ -z "$LATEST" ]; then
+            echo "::error::R2バケット 'gh-trends-backups' にバックアップファイルが見つかりません"
+            exit 1
+          fi
+
+          echo "最新バックアップ: ${LATEST}"
+
+          # R2からダウンロード
+          aws s3 cp \
+            "s3://gh-trends-backups/${LATEST}" \
+            "/tmp/${LATEST}" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --region auto
+
+          # 圧縮ファイルを展開
+          gunzip "/tmp/${LATEST}"
+          SQL_FILE="${LATEST%.gz}"
+          echo "SQL_FILE=${SQL_FILE}" >> "$GITHUB_ENV"
+          echo "SQLファイル展開完了: ${SQL_FILE}"
+
+      - name: dev D1を初期化（全テーブル削除）
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          # 外部キー制約を無効にしてから全テーブルを削除
+          cat > /tmp/cleanup.sql << 'CLEANUP_SQL'
+          PRAGMA foreign_keys = OFF;
+          DROP TABLE IF EXISTS users;
+          DROP TABLE IF EXISTS languages;
+          DROP TABLE IF EXISTS ranking_weekly;
+          DROP TABLE IF EXISTS metrics_daily;
+          DROP TABLE IF EXISTS repo_snapshots;
+          DROP TABLE IF EXISTS repositories;
+          PRAGMA foreign_keys = ON;
+          CLEANUP_SQL
+
+          npx wrangler d1 execute gh-trends-db-dev --remote \
+            --file="/tmp/cleanup.sql"
+          echo "dev D1 の全テーブルを削除しました"
+
+      - name: バックアップをdev D1に適用
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          npx wrangler d1 execute gh-trends-db-dev --remote \
+            --file="/tmp/${{ env.SQL_FILE }}"
+          echo "バックアップの適用完了"
+
+      - name: 整合性チェック実行
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          set -euo pipefail
+          CHECK_FAILED=false
+
+          # wrangler d1 execute --json の結果から最初の値を取得するヘルパー
+          query() {
+            npx wrangler d1 execute gh-trends-db-dev --remote --json \
+              --command "$1" 2>/dev/null \
+              | jq -r '.[0].results[0] | to_entries[0].value'
+          }
+
+          # テーブルのレコード件数を確認
+          check_count() {
+            local TABLE=$1
+            local COUNT
+            COUNT=$(query "SELECT COUNT(*) as cnt FROM ${TABLE}")
+            if ! echo "$COUNT" | grep -qE '^[0-9]+$'; then
+              echo "::error::${TABLE}: 件数クエリの実行に失敗しました（結果: ${COUNT}）"
+              CHECK_FAILED=true
+            elif [ "$COUNT" -eq 0 ]; then
+              echo "::error::${TABLE}: レコードが0件です"
+              CHECK_FAILED=true
+            else
+              echo "✓ ${TABLE}: ${COUNT} 件"
+            fi
+          }
+
+          # テーブルの最新タイムスタンプを確認
+          check_latest() {
+            local TABLE=$1
+            local COL=$2
+            local LATEST
+            LATEST=$(query "SELECT MAX(${COL}) as latest FROM ${TABLE}")
+            if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
+              echo "::error::${TABLE}.${COL}: 最新タイムスタンプが取得できません"
+              CHECK_FAILED=true
+            else
+              echo "  最新 ${COL}: ${LATEST}"
+            fi
+          }
+
+          echo "=== 整合性チェック開始 ==="
+
+          check_count "repositories"
+          check_latest "repositories" "updated_at"
+
+          check_count "metrics_daily"
+          check_latest "metrics_daily" "calculated_date"
+
+          check_count "ranking_weekly"
+          check_latest "ranking_weekly" "created_at"
+
+          check_count "languages"
+
+          echo "=== 整合性チェック完了 ==="
+
+          if [ "$CHECK_FAILED" = "true" ]; then
+            echo "::error::整合性チェックに失敗しました。ワークフローログを確認してください。"
+            exit 1
+          fi
+
+          echo "✓ 全テーブルの整合性チェックが正常に完了しました"
+
+      - name: 失敗時にGitHub Issueを自動起票
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[自動起票] D1リストアテスト失敗 (${date})`,
+              body: [
+                '## 月次D1リストアテストが失敗しました',
+                '',
+                `- **実行日**: ${date}`,
+                `- **ワークフロー実行**: [Run #${context.runId}](${runUrl})`,
+                '',
+                '## 対応手順',
+                '',
+                '1. 上記ワークフロー実行のログを確認する',
+                '2. R2バケット `gh-trends-backups` にバックアップファイルが存在するか確認する',
+                '3. dev D1 (`gh-trends-db-dev`) の状態を確認する',
+                '4. 問題を修正後、`workflow_dispatch` で手動再実行して結果を確認する',
+                '',
+                '## 関連',
+                '',
+                '- 障害対応Runbook: `docs/プロセス/障害対応Runbook.md`',
+                '- 親チケット: #149',
+              ].join('\n'),
+              labels: ['bug'],
+            });
+            console.log('GitHub Issue を起票しました');
