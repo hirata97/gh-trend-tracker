@@ -66,6 +66,18 @@ npm run dev:frontend # Web: http://localhost:4321
 - **Workers**: 10万リクエスト/日
 - **Pages**: 無制限リクエスト
 
+## 運用上の注意
+
+### 月次リストアテストによる開発用DB初期化
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00 に自動実行され、R2 バックアップから `gh-trends-db-dev`（開発用D1）へのリストアを検証します。
+
+**⚠️ このワークフロー実行中は開発用DBが初期化・上書きされます。**
+
+- リストアテスト中はローカル開発を一時中断するか、ローカルSQLiteを使用してください
+- `workflow_dispatch` での手動実行も同様に開発用DBを上書きします
+- 本番DB（`gh-trends-db`）には一切影響しません
+
 ## ライセンス
 
 MIT
