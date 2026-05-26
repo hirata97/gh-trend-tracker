@@ -1,0 +1,156 @@
+name: Monthly Restore Test
+
+on:
+  # 毎月1日 UTC 03:00 に実行（日次バックアップ（UTC 02:00）完了後を想定）
+  schedule:
+    - cron: '0 3 1 * *'
+
+  # 手動実行を許可（動作確認・障害調査用）
+  workflow_dispatch:
+    inputs:
+      backup_filename:
+        description: 'リストア対象ファイル名（例: gh-trends-db_2026-05-01.sql.gz）。空の場合は最新を使用。'
+        required: false
+        type: string
+
+jobs:
+  restore-test:
+    name: Restore Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get latest backup from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          INPUT_FILENAME="${{ inputs.backup_filename }}"
+
+          if [ -n "$INPUT_FILENAME" ]; then
+            echo "指定ファイルを使用: $INPUT_FILENAME"
+            FILENAME="$INPUT_FILENAME"
+          else
+            echo "最新バックアップを検索..."
+            FILENAME=$(aws s3 ls \
+              "s3://gh-trends-backups/" \
+              --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+              --region auto | \
+              sort -k1,2 | tail -1 | awk '{print $4}')
+          fi
+
+          if [ -z "$FILENAME" ]; then
+            echo "::error::バックアップファイルが見つかりません"
+            exit 1
+          fi
+
+          echo "バックアップファイル: $FILENAME"
+          echo "BACKUP_FILENAME=$FILENAME" >> "$GITHUB_ENV"
+
+          aws s3 cp \
+            "s3://gh-trends-backups/$FILENAME" \
+            "/tmp/$FILENAME" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto
+
+      - name: Decompress backup
+        run: |
+          gzip -d "/tmp/${{ env.BACKUP_FILENAME }}"
+          SQL_FILENAME="${{ env.BACKUP_FILENAME }}"
+          SQL_FILENAME="${SQL_FILENAME%.gz}"
+          echo "SQL_FILENAME=$SQL_FILENAME" >> "$GITHUB_ENV"
+          LINE_COUNT=$(wc -l < "/tmp/$SQL_FILENAME")
+          echo "展開完了: $SQL_FILENAME ($LINE_COUNT 行)"
+
+      - name: Reset dev DB (全テーブル削除)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          echo "=== dev DB のテーブルを削除 ==="
+          # FOREIGN KEY制約を無効にしてすべての既知テーブルを削除
+          printf 'PRAGMA foreign_keys = OFF;\n' > /tmp/reset-db.sql
+          printf 'DROP TABLE IF EXISTS ranking_weekly;\n' >> /tmp/reset-db.sql
+          printf 'DROP TABLE IF EXISTS metrics_daily;\n' >> /tmp/reset-db.sql
+          printf 'DROP TABLE IF EXISTS repo_snapshots;\n' >> /tmp/reset-db.sql
+          printf 'DROP TABLE IF EXISTS repositories;\n' >> /tmp/reset-db.sql
+          printf 'DROP TABLE IF EXISTS languages;\n' >> /tmp/reset-db.sql
+          printf 'PRAGMA foreign_keys = ON;\n' >> /tmp/reset-db.sql
+
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development --remote \
+            --file /tmp/reset-db.sql
+          echo "=== テーブル削除完了 ==="
+
+      - name: Apply backup to dev DB
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          echo "=== バックアップを dev DB に適用 ==="
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development --remote \
+            --file "/tmp/${{ env.SQL_FILENAME }}"
+          echo "=== 適用完了 ==="
+
+      - name: Run integrity check
+        id: integrity-check
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: npm run db:check -- --remote --env development
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          BACKUP_FILENAME: ${{ env.BACKUP_FILENAME }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const date = new Date().toISOString().slice(0, 10);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const backupFile = process.env.BACKUP_FILENAME || '不明';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[自動起票] 月次リストアテスト失敗 (${date})`,
+              body: [
+                '## 障害概要',
+                '',
+                '月次リストアテスト（`restore-test.yml`）が失敗しました。',
+                '',
+                '## 詳細',
+                '',
+                `- **実行日時**: ${new Date().toISOString()}`,
+                `- **バックアップファイル**: ${backupFile}`,
+                `- **ワークフロー実行**: [${context.runId}](${runUrl})`,
+                '',
+                '## 対応手順',
+                '',
+                '1. 上記ワークフローのログを確認する',
+                '2. [障害対応Runbook](../blob/main/docs/プロセス/障害対応Runbook.md) を参照する',
+                '3. `workflow_dispatch` で手動リストアテストを実施して問題を再現・調査する',
+                '',
+                '## 関連',
+                '',
+                '- #155 月次リストアテストworkflow整備',
+              ].join('\n'),
+              labels: ['bug', 'priority: high'],
+            });
