@@ -1,0 +1,158 @@
+name: Monthly D1 Restore Test
+
+on:
+  # 毎月1日 UTC 03:00 に実行（日本時間 12:00 PM）
+  # バックアップ取得（UTC 02:00）の1時間後に実行
+  schedule:
+    - cron: '0 3 1 * *'
+
+  # 手動実行を許可（動作確認用）
+  workflow_dispatch:
+
+# 同じワークフローの同時実行を防止
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+# GitHub Issue自動起票に必要な書き込み権限
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  restore-test:
+    name: R2バックアップ → dev DB リストアテスト
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # R2 バケットから最新バックアップファイル名を取得
+      - name: Find latest backup in R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          LATEST=$(aws s3 ls \
+            "s3://gh-trends-backups/" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto \
+            | grep "gh-trends-db_" | sort | tail -n1 | awk '{print $4}')
+          if [ -z "${LATEST}" ]; then
+            echo "エラー: R2 バケットにバックアップが見つかりません" >&2
+            exit 1
+          fi
+          echo "最新バックアップ: ${LATEST}"
+          echo "LATEST_BACKUP=${LATEST}" >> "$GITHUB_ENV"
+
+      # R2 から最新バックアップをダウンロード
+      - name: Download latest backup from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          aws s3 cp \
+            "s3://gh-trends-backups/${{ env.LATEST_BACKUP }}" \
+            "/tmp/${{ env.LATEST_BACKUP }}" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto
+
+      - name: Decompress backup
+        run: |
+          gunzip "/tmp/${{ env.LATEST_BACKUP }}"
+          SQL_FILE="${{ env.LATEST_BACKUP }}"
+          SQL_FILE="${SQL_FILE%.gz}"
+          echo "SQL_FILE=${SQL_FILE}" >> "$GITHUB_ENV"
+          echo "解凍後ファイル: ${SQL_FILE} ($(du -sh /tmp/${SQL_FILE} | cut -f1))"
+
+      # dev DB を初期化（全テーブル削除）してリストア前の状態をクリーンにする
+      # ⚠️ この操作により gh-trends-db-dev のデータは全て失われます
+      - name: Initialize dev DB (全テーブル削除)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          cat > /tmp/drop-tables.sql << 'EOF'
+          DROP TABLE IF EXISTS ranking_weekly;
+          DROP TABLE IF EXISTS metrics_daily;
+          DROP TABLE IF EXISTS repo_snapshots;
+          DROP TABLE IF EXISTS repositories;
+          DROP TABLE IF EXISTS languages;
+          DROP TABLE IF EXISTS __drizzle_migrations;
+          DROP TABLE IF EXISTS d1_migrations;
+          EOF
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file=/tmp/drop-tables.sql \
+            --json
+          echo "dev DB 初期化完了"
+
+      # バックアップ SQL を dev DB に適用
+      - name: Restore backup to dev DB
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file="/tmp/${{ env.SQL_FILE }}" \
+            --json
+          echo "リストア完了"
+
+      # 整合性チェックスクリプトを実行してリストアの成功を検証
+      - name: Run DB integrity check
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: npm run db:check -- --remote --env development
+
+      # 失敗時は GitHub Issue を自動起票して通知
+      - name: 失敗時のGitHub Issue自動起票
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().slice(0, 10);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 月次リストアテスト失敗 (${date})`,
+              body: [
+                '## 月次リストアテスト失敗',
+                '',
+                `**実行日時**: ${new Date().toISOString()}`,
+                `**Workflowログ**: [実行 #${context.runNumber}](${runUrl})`,
+                '',
+                '## 対応手順',
+                '',
+                '1. 上記 Workflow ログで失敗したステップを特定する',
+                '2. [障害対応Runbook](docs/プロセス/障害対応Runbook.md) の「バックアップリストア失敗」セクションを参照する',
+                '3. 手動で `workflow_dispatch` から再実行して確認する',
+                '',
+                '## 注意',
+                '',
+                '> ⚠️ リストアテスト実行中は `gh-trends-db-dev` が初期化されます。',
+                '> 開発作業に影響が出ていないか確認してください。',
+                '> 必要な場合は `npm run db:migrate:dev:remote` でマイグレーションを再適用してください。',
+              ].join('\n'),
+              labels: ['bug', 'priority: high'],
+            });

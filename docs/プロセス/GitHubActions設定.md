@@ -344,6 +344,54 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 
 ---
 
+## 月次リストアテスト（restore-test.yml）
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00 に R2 バックアップから dev DB へのリストアを自動検証します。
+
+> ⚠️ **重要**: リストアテスト実行中は `gh-trends-db-dev`（開発用D1）の全データが**初期化されます**。
+> テスト実行中に開発作業を行っている場合、ローカルのデータが失われる可能性があります。
+> テスト完了後に dev DB が必要な場合は `npm run db:migrate:dev:remote` で再構築してください。
+
+### リストアテストフロー
+
+```
+毎月1日 UTC 03:00（バックアップ取得の1時間後）
+  └─ restore-test ジョブ
+       ├─ R2 から最新バックアップを検索・ダウンロード
+       ├─ gz 解凍
+       ├─ dev DB を初期化（全テーブル DROP）
+       ├─ バックアップ SQL を dev DB に適用（リストア）
+       ├─ 整合性チェックスクリプトを実行（npm run db:check）
+       └─ 失敗時: GitHub Issue を自動起票
+```
+
+### 必要なシークレット
+
+リストアテストでは以下のシークレットを使用します（バックアップと同じものを流用）：
+
+| シークレット名 | 用途 |
+| --- | --- |
+| `R2_BACKUP_ACCESS_KEY_ID` | R2 からのダウンロード |
+| `R2_BACKUP_SECRET_ACCESS_KEY` | R2 からのダウンロード |
+| `CLOUDFLARE_API_TOKEN` | dev D1 への書き込み |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare API |
+
+### 手動実行でテスト
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"Monthly D1 Restore Test"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. 全ステップが緑になることを確認
+5. 失敗した場合は自動的に GitHub Issue が起票されます
+
+### 失敗時の対応
+
+- Workflow ログで失敗したステップを確認する
+- [障害対応Runbook](./障害対応Runbook.md) の「バックアップリストア失敗」セクションを参照する
+- 手動で `workflow_dispatch` から再実行して確認する
+
+---
+
 ## 自動デプロイ（deploy.yml）
 
 `.github/workflows/deploy.yml` は `main` ブランチへの push 時または手動トリガーで自動デプロイを実行します。
