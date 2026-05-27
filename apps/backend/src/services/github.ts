@@ -124,8 +124,14 @@ export async function fetchRepository(
 }
 
 /**
- * 複数リポジトリを逐次取得する
- * GitHub API レート制限を考慮してシーケンシャルに実行
+ * 並列フェッチの同時実行数上限
+ * GitHub REST API 認証済みレート制限（5000req/h = 83req/min）内で安全に並列化できる数
+ */
+const FETCH_CONCURRENCY = 6;
+
+/**
+ * 複数リポジトリを並列取得する（FETCH_CONCURRENCYずつチャンク並列）
+ * 逐次N RTT → ceil(N/FETCH_CONCURRENCY) RTT に削減
  */
 export async function fetchRepositories(
   fullNames: string[],
@@ -139,21 +145,25 @@ export async function fetchRepositories(
     results: [],
   };
 
-  for (const fullName of fullNames) {
-    const result = await fetchRepository(fullName, token);
-    summary.results.push(result);
+  for (let i = 0; i < fullNames.length; i += FETCH_CONCURRENCY) {
+    const chunk = fullNames.slice(i, i + FETCH_CONCURRENCY);
+    const chunkResults = await Promise.all(chunk.map((fullName) => fetchRepository(fullName, token)));
 
-    switch (result.status) {
-      case 'success':
-        summary.success++;
-        break;
-      case 'not_found':
-        summary.notFound++;
-        break;
-      case 'error':
-        summary.errors++;
-        console.error(`リポジトリ取得エラー: ${fullName} - ${result.message}`);
-        break;
+    for (const result of chunkResults) {
+      summary.results.push(result);
+
+      switch (result.status) {
+        case 'success':
+          summary.success++;
+          break;
+        case 'not_found':
+          summary.notFound++;
+          break;
+        case 'error':
+          summary.errors++;
+          console.error(`リポジトリ取得エラー: ${result.fullName} - ${result.message}`);
+          break;
+      }
     }
   }
 
