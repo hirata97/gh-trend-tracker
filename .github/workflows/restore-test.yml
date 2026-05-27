@@ -14,6 +14,11 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
+# GitHub Issue自動起票に必要な書き込み権限
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   restore-test:
     name: R2バックアップ → dev DB リストアテスト
@@ -44,7 +49,7 @@ jobs:
             "s3://gh-trends-backups/" \
             --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
             --region auto \
-            | sort | tail -n1 | awk '{print $4}')
+            | grep "gh-trends-db_" | sort | tail -n1 | awk '{print $4}')
           if [ -z "${LATEST}" ]; then
             echo "エラー: R2 バケットにバックアップが見つかりません" >&2
             exit 1
