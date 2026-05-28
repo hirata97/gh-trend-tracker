@@ -411,3 +411,57 @@ npx wrangler pages project create gh-trend-tracker-frontend
 - GitHub Actions の **Actions** タブでログを確認
 - `deploy-backend` または `deploy-frontend` ジョブが赤くなっていれば失敗
 - `ci-check` が失敗している場合は lint/テスト/ビルドエラーを先に修正する
+
+---
+
+## 月次リストアテスト（restore-test.yml）
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00（日本時間 12:00）に R2 バックアップを dev D1 へリストアし、整合性を検証します。
+
+### リストアテストフロー
+
+```
+毎月1日 UTC 03:00
+  └─ restore-test ジョブ
+       ├─ R2 から最新バックアップ（*.sql.gz）を取得
+       ├─ gunzip で解凍
+       ├─ dev D1（gh-trends-db-dev）の全テーブルを DROP
+       ├─ バックアップ SQL を dev D1 に適用
+       ├─ 整合性チェックスクリプト（npm run db:check -- --remote --env development）を実行
+       └─ 失敗時 → GitHub Issue を自動起票（ラベル: bug）
+```
+
+### 必要なシークレット
+
+バックアップ取得には `backup-d1.yml` と同じ R2 シークレットを使用します。
+
+| シークレット名 | 用途 |
+| --- | --- |
+| `R2_BACKUP_ACCESS_KEY_ID` | R2 バケットからの読み取り |
+| `R2_BACKUP_SECRET_ACCESS_KEY` | R2 バケットからの読み取り |
+| `CLOUDFLARE_API_TOKEN` | dev D1 への書き込み |
+| `CLOUDFLARE_ACCOUNT_ID` | R2 エンドポイント URL の構成 |
+
+### 手動実行でテスト
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"月次 DB リストアテスト"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. `整合性チェックを実行` ステップが ✅ で完了することを確認
+
+### 注意事項
+
+> **警告**: このワークフローは **dev D1 データベースの全テーブルを削除**した上でバックアップを適用します。
+> 実行中は開発環境のデータが破壊されます。実行後に dev DB を元の状態に戻す必要がある場合は以下を実行してください：
+>
+> ```bash
+> cd apps/backend && npm run db:migrate:dev:remote
+> ```
+
+### 失敗時の対応
+
+自動起票された Issue を確認し、[障害対応Runbook](./障害対応Runbook.md) を参照してください。主な原因：
+
+- R2 バケットにバックアップが存在しない → `backup-d1.yml` の実行履歴を確認
+- dev D1 への接続失敗 → `CLOUDFLARE_API_TOKEN` の権限を確認
+- 整合性チェック失敗 → バックアップ自体のデータ品質を確認

@@ -1,0 +1,128 @@
+name: 月次 DB リストアテスト
+
+on:
+  # 毎月1日 UTC 03:00（日本時間 12:00）に実行
+  schedule:
+    - cron: '0 3 1 * *'
+
+  # 手動実行を許可（動作確認用）
+  workflow_dispatch:
+
+# 同時実行を防止（restore-test は排他実行）
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  restore-test:
+    name: Restore Test
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write  # 失敗時の Issue 自動起票に必要
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: R2 から最新バックアップを取得
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          LATEST=$(aws s3 ls "s3://gh-trends-backups/" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto | sort | tail -1 | awk '{print $4}')
+          if [ -z "$LATEST" ]; then
+            echo "::error::R2にバックアップファイルが見つかりません"
+            exit 1
+          fi
+          echo "最新バックアップ: ${LATEST}"
+          aws s3 cp \
+            "s3://gh-trends-backups/${LATEST}" \
+            "/tmp/${LATEST}" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto
+          echo "BACKUP_FILE=/tmp/${LATEST}" >> "$GITHUB_ENV"
+
+      - name: バックアップファイルを解凍
+        run: |
+          gunzip "$BACKUP_FILE"
+          echo "RESTORE_SQL=${BACKUP_FILE%.gz}" >> "$GITHUB_ENV"
+
+      - name: dev D1 データベースを初期化（全テーブル削除）
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          cat > /tmp/reset-dev-db.sql << 'RESET_SQL'
+          DROP TABLE IF EXISTS repo_snapshots;
+          DROP TABLE IF EXISTS metrics_daily;
+          DROP TABLE IF EXISTS ranking_weekly;
+          DROP TABLE IF EXISTS repositories;
+          DROP TABLE IF EXISTS languages;
+          DROP TABLE IF EXISTS d1_migrations;
+          RESET_SQL
+          echo "dev DB の全テーブルを削除します..."
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file /tmp/reset-dev-db.sql
+          echo "dev DB の初期化完了"
+
+      - name: バックアップ SQL を dev D1 に適用
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          echo "バックアップ SQL を適用します: ${RESTORE_SQL}"
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file "${RESTORE_SQL}"
+          echo "バックアップ SQL 適用完了"
+
+      - name: 整合性チェックを実行
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: npm run db:check -- --remote --env development
+
+      - name: 失敗時に GitHub Issue を自動起票
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[障害] 月次リストアテスト失敗 (${date})`,
+              body: [
+                '## 月次リストアテストが失敗しました',
+                '',
+                `- **実行日時**: ${new Date().toISOString()}`,
+                `- **ワークフロー実行**: [Run #${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                '## 対応手順',
+                '',
+                '1. 上記ワークフロー実行ログを確認する',
+                '2. [障害対応Runbook](./docs/プロセス/障害対応Runbook.md) を参照する',
+                '3. R2 バケット（`gh-trends-backups`）のバックアップファイルを確認する',
+                '4. 整合性チェックの出力から失敗した項目を特定する',
+              ].join('\n'),
+              labels: ['bug'],
+            });
