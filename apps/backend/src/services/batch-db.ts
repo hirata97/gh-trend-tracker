@@ -95,7 +95,7 @@ export async function insertSnapshot(
 /**
  * N日前の日付をISO形式で計算
  */
-function getDaysAgoDate(baseDate: string, days: number): string {
+export function getDaysAgoDate(baseDate: string, days: number): string {
   const date = new Date(baseDate);
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().split('T')[0];
@@ -175,11 +175,16 @@ export async function calculateAndUpsertMetrics(
  * - SELECTは自己JOINを使用（INパラメータリスト不要）
  * - DELETEはcalculated_date単一条件（パラメータ1件）
  * - INSERTは6列×16行=96パラメータ以内でチャンク分割
+ *
+ * @param prefetchedSnap7dMap - 事前取得済みの7日前スナップショットマップ（提供時は内部クエリをスキップ）
+ * @param prefetchedSnap30dMap - 事前取得済みの30日前スナップショットマップ（提供時は内部クエリをスキップ）
  */
 export async function calculateAndUpsertMetricsBatch(
   db: DrizzleD1Database,
   todaySnapshots: Array<{ repoId: number; stars: number }>,
-  todayDate: string
+  todayDate: string,
+  prefetchedSnap7dMap?: Map<number, number>,
+  prefetchedSnap30dMap?: Map<number, number>
 ): Promise<void> {
   if (todaySnapshots.length === 0) return;
 
@@ -187,39 +192,48 @@ export async function calculateAndUpsertMetricsBatch(
   const sevenDaysAgoStr = getDaysAgoDate(todayDate, 7);
   const thirtyDaysAgoStr = getDaysAgoDate(todayDate, 30);
 
-  // 自己結合エイリアス
-  const snapToday = alias(repoSnapshots, 'snap_today');
-  const snap7dAlias = alias(repoSnapshots, 'snap_7d');
-  const snap30dAlias = alias(repoSnapshots, 'snap_30d');
+  let snap7dMap: Map<number, number>;
+  let snap30dMap: Map<number, number>;
 
-  // 7日前・30日前のスナップショットを並列取得（相互依存なし、1ラウンドトリップ削減）
-  const [snap7dRows, snap30dRows] = await Promise.all([
-    db
-      .select({ repoId: snap7dAlias.repoId, stars: snap7dAlias.stars })
-      .from(snapToday)
-      .innerJoin(
-        snap7dAlias,
-        and(
-          eq(snap7dAlias.repoId, snapToday.repoId),
-          eq(snap7dAlias.snapshotDate, sevenDaysAgoStr)
-        )
-      )
-      .where(eq(snapToday.snapshotDate, todayDate)),
-    db
-      .select({ repoId: snap30dAlias.repoId, stars: snap30dAlias.stars })
-      .from(snapToday)
-      .innerJoin(
-        snap30dAlias,
-        and(
-          eq(snap30dAlias.repoId, snapToday.repoId),
-          eq(snap30dAlias.snapshotDate, thirtyDaysAgoStr)
-        )
-      )
-      .where(eq(snapToday.snapshotDate, todayDate)),
-  ]);
+  if (prefetchedSnap7dMap !== undefined && prefetchedSnap30dMap !== undefined) {
+    // 呼び出し元で事前取得済みのマップを使用（追加クエリ不要）
+    snap7dMap = prefetchedSnap7dMap;
+    snap30dMap = prefetchedSnap30dMap;
+  } else {
+    // 自己結合エイリアス
+    const snapToday = alias(repoSnapshots, 'snap_today');
+    const snap7dAlias = alias(repoSnapshots, 'snap_7d');
+    const snap30dAlias = alias(repoSnapshots, 'snap_30d');
 
-  const snap7dMap = new Map(snap7dRows.map((r) => [r.repoId, r.stars]));
-  const snap30dMap = new Map(snap30dRows.map((r) => [r.repoId, r.stars]));
+    // 7日前・30日前のスナップショットを並列取得（相互依存なし、1ラウンドトリップ削減）
+    const [snap7dRows, snap30dRows] = await Promise.all([
+      db
+        .select({ repoId: snap7dAlias.repoId, stars: snap7dAlias.stars })
+        .from(snapToday)
+        .innerJoin(
+          snap7dAlias,
+          and(
+            eq(snap7dAlias.repoId, snapToday.repoId),
+            eq(snap7dAlias.snapshotDate, sevenDaysAgoStr)
+          )
+        )
+        .where(eq(snapToday.snapshotDate, todayDate)),
+      db
+        .select({ repoId: snap30dAlias.repoId, stars: snap30dAlias.stars })
+        .from(snapToday)
+        .innerJoin(
+          snap30dAlias,
+          and(
+            eq(snap30dAlias.repoId, snapToday.repoId),
+            eq(snap30dAlias.snapshotDate, thirtyDaysAgoStr)
+          )
+        )
+        .where(eq(snapToday.snapshotDate, todayDate)),
+    ]);
+
+    snap7dMap = new Map(snap7dRows.map((r) => [r.repoId, r.stars]));
+    snap30dMap = new Map(snap30dRows.map((r) => [r.repoId, r.stars]));
+  }
 
   const metricsValues = todaySnapshots.map(({ repoId }) => {
     const currentStars = todayStarsMap.get(repoId)!;

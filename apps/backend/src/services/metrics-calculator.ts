@@ -3,11 +3,11 @@
  * HTTPエンドポイントとCronトリガーの両方から呼び出される
  */
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import type { BatchMetricsResponse } from '@gh-trend-tracker/shared';
 import { getTodayISO } from '../shared/utils';
 import { repoSnapshots } from '../db/schema';
-import { calculateAndUpsertMetricsBatch } from './batch-db';
+import { calculateAndUpsertMetricsBatch, getDaysAgoDate } from './batch-db';
 
 export interface MetricsCalculateOptions {
   db: DrizzleD1Database;
@@ -23,12 +23,24 @@ export async function runMetricsCalculation(
   const { db } = options;
   const startTime = Date.now();
   const todayDate = getTodayISO();
+  const sevenDaysAgoStr = getDaysAgoDate(todayDate, 7);
+  const thirtyDaysAgoStr = getDaysAgoDate(todayDate, 30);
 
-  // 本日のスナップショットがあるリポジトリID・スター数を一括取得（初回クエリでstarsも取得し後続クエリを削減）
-  const todaySnaps = await db
-    .select({ repoId: repoSnapshots.repoId, stars: repoSnapshots.stars })
+  // 今日・7日前・30日前のスナップショットを1クエリで一括取得（3RTT→2RTTに削減）
+  // 旧: today(1RTT) + Promise.all([7d, 30d])(1RTT) + batch(1RTT) = 3RTT
+  // 新: combined(1RTT) + batch(1RTT) = 2RTT（33%削減）
+  const allSnaps = await db
+    .select({
+      repoId: repoSnapshots.repoId,
+      stars: repoSnapshots.stars,
+      snapshotDate: repoSnapshots.snapshotDate,
+    })
     .from(repoSnapshots)
-    .where(eq(repoSnapshots.snapshotDate, todayDate));
+    .where(inArray(repoSnapshots.snapshotDate, [todayDate, sevenDaysAgoStr, thirtyDaysAgoStr]));
+
+  const todaySnaps = allSnaps
+    .filter((s) => s.snapshotDate === todayDate)
+    .map((s) => ({ repoId: s.repoId, stars: s.stars }));
 
   if (todaySnaps.length === 0) {
     return {
@@ -44,13 +56,23 @@ export async function runMetricsCalculation(
     };
   }
 
+  // 7日前・30日前のマップをクライアント側で構築（追加クエリ不要）
+  const snap7dMap = new Map<number, number>();
+  const snap30dMap = new Map<number, number>();
+  for (const snap of allSnaps) {
+    if (snap.snapshotDate === sevenDaysAgoStr) {
+      snap7dMap.set(snap.repoId, snap.stars);
+    } else if (snap.snapshotDate === thirtyDaysAgoStr) {
+      snap30dMap.set(snap.repoId, snap.stars);
+    }
+  }
+
   let success = 0;
   const skipped = 0;
   let errors = 0;
 
   try {
-    // JOINバッチ化でN+1クエリ問題を解消（O(5N)クエリ → O(N/16+4)クエリ）
-    await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate);
+    await calculateAndUpsertMetricsBatch(db, todaySnaps, todayDate, snap7dMap, snap30dMap);
     success = todaySnaps.length;
   } catch (error) {
     errors = todaySnaps.length;
