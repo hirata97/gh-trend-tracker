@@ -5,6 +5,7 @@
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { eq, and, between, lte, desc, inArray } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import type { BatchWeeklyRankingResponse, WeeklyRankEntry } from '@gh-trend-tracker/shared';
 import { repositories, repoSnapshots, rankingWeekly } from '../db/schema';
 
@@ -72,16 +73,53 @@ export async function runWeeklyRankingCalculation(
   const { year, weekNumber } = getISOWeekInfo(lastWeek);
   const { startDate, endDate } = getISOWeekRange(year, weekNumber);
 
-  // 対象週にスナップショットが存在するリポジトリを取得
-  const reposWithSnapshots = await db
-    .selectDistinct({
+  // selectDistinct(1RTT) + チャンク並列クエリ(1RTT) を単一結合クエリ(1RTT)に削減
+  // 改善前: selectDistinct → repoId一覧取得 → チャンク分割 → Promise.all(チャンク) = 2RTT
+  // 改善後: サブクエリINで対象週リポジトリを絞り込みつつ履歴スナップショットを一括取得 = 1RTT
+  // 副次効果: D1バインドパラメータ上限(100)問題が不要（サブクエリはパラメータ化不要）
+  const snapWeek = alias(repoSnapshots, 'snap_week');
+  const snapAll = alias(repoSnapshots, 'snap_all');
+
+  // 対象週にスナップショットのあるリポジトリIDを特定するサブクエリ
+  const weeklyReposSubquery = db
+    .selectDistinct({ repoId: snapWeek.repoId })
+    .from(snapWeek)
+    .where(between(snapWeek.snapshotDate, startDate, endDate));
+
+  // 対象リポジトリの全履歴スナップショット（～endDate）を1クエリで取得
+  // 注意: 履歴は90日間に制限されているため（CLAUDE.md参照）、最大500リポジトリ×90日=45,000行
+  // D1の1レスポンス10MB上限に対して十分余裕がある
+  const combinedRows = await db
+    .select({
       repoId: repositories.repoId,
       fullName: repositories.fullName,
       language: repositories.language,
+      snapshotDate: snapAll.snapshotDate,
+      stars: snapAll.stars,
     })
     .from(repositories)
-    .innerJoin(repoSnapshots, eq(repositories.repoId, repoSnapshots.repoId))
-    .where(between(repoSnapshots.snapshotDate, startDate, endDate));
+    .innerJoin(
+      snapAll,
+      and(eq(snapAll.repoId, repositories.repoId), lte(snapAll.snapshotDate, endDate))
+    )
+    .where(inArray(repositories.repoId, weeklyReposSubquery))
+    .orderBy(repositories.repoId, desc(snapAll.snapshotDate));
+
+  // 1パスでreposWithSnapshotsとsnapshotsByRepoを同時構築（クエリ結果はrepoId昇順・日付降順）
+  const seenRepos = new Map<number, { repoId: number; fullName: string; language: string | null }>();
+  const snapshotsByRepo = new Map<number, Array<{ snapshotDate: string; stars: number }>>();
+  for (const row of combinedRows) {
+    if (!seenRepos.has(row.repoId)) {
+      seenRepos.set(row.repoId, { repoId: row.repoId, fullName: row.fullName, language: row.language });
+    }
+    const list = snapshotsByRepo.get(row.repoId);
+    if (list) {
+      list.push({ snapshotDate: row.snapshotDate, stars: row.stars });
+    } else {
+      snapshotsByRepo.set(row.repoId, [{ snapshotDate: row.snapshotDate, stars: row.stars }]);
+    }
+  }
+  const reposWithSnapshots = [...seenRepos.values()];
 
   // 各リポジトリの週間スター増加数を計算
   const repoGrowth: Array<{
@@ -90,49 +128,6 @@ export async function runWeeklyRankingCalculation(
     language: string | null;
     starIncrease: number;
   }> = [];
-
-  const repoIds = reposWithSnapshots.map((repo) => repo.repoId);
-  const snapshotsByRepo = new Map<number, Array<{ snapshotDate: string; stars: number }>>();
-
-  if (repoIds.length > 0) {
-    // Cloudflare D1 のバインド上限（約100）を回避するため、repoId をチャンクに分割する
-    // 各チャンクは相互依存がないため Promise.all で並列実行（逐次O(N/100)RTT → O(1)RTT）
-    // D1 の同時サブリクエスト上限（約6）以内に収まるよう BIND_PARAM_LIMIT=100 でチャンク数を管理する
-    const BIND_PARAM_LIMIT = 100;
-    const chunks: number[][] = [];
-    for (let i = 0; i < repoIds.length; i += BIND_PARAM_LIMIT) {
-      chunks.push(repoIds.slice(i, i + BIND_PARAM_LIMIT));
-    }
-
-    const chunkResults = await Promise.all(
-      chunks.map((chunk) =>
-        db
-          .select({
-            repoId: repoSnapshots.repoId,
-            snapshotDate: repoSnapshots.snapshotDate,
-            stars: repoSnapshots.stars,
-          })
-          .from(repoSnapshots)
-          .where(and(inArray(repoSnapshots.repoId, chunk), lte(repoSnapshots.snapshotDate, endDate)))
-          .orderBy(repoSnapshots.repoId, desc(repoSnapshots.snapshotDate))
-      )
-    );
-    const allSnapshots = chunkResults.flat();
-
-    // 安全のため、repoId昇順・snapshotDate降順でソートしてからMapに格納する
-    allSnapshots.sort((a, b) =>
-      a.repoId === b.repoId ? b.snapshotDate.localeCompare(a.snapshotDate) : a.repoId - b.repoId
-    );
-
-    for (const snap of allSnapshots) {
-      const list = snapshotsByRepo.get(snap.repoId);
-      if (list) {
-        list.push({ snapshotDate: snap.snapshotDate, stars: snap.stars });
-      } else {
-        snapshotsByRepo.set(snap.repoId, [{ snapshotDate: snap.snapshotDate, stars: snap.stars }]);
-      }
-    }
-  }
 
   for (const repo of reposWithSnapshots) {
     const snapshots = snapshotsByRepo.get(repo.repoId) ?? [];
