@@ -1,0 +1,142 @@
+name: Monthly D1 Restore Test
+
+on:
+  # 毎月1日 UTC 03:00 に実行（日次バックアップ取得の1時間後）
+  schedule:
+    - cron: '0 3 1 * *'
+
+  # 手動実行を許可（動作確認用）
+  workflow_dispatch:
+
+# 排他実行（リストアテストは同時実行不可）
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  restore-test:
+    name: R2バックアップ → dev DB リストアテスト
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write  # 失敗時の GitHub Issue 自動起票に必要
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # R2 バケットから最新バックアップを検索・ダウンロード
+      - name: R2 から最新バックアップを取得
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          LATEST=$(aws s3 ls \
+            "s3://gh-trends-backups/" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto \
+            | grep "gh-trends-db_" | sort | tail -n1 | awk '{print $4}')
+          if [ -z "${LATEST}" ]; then
+            echo "::error::R2 バケットにバックアップファイルが見つかりません（gh-trends-db_*.sql.gz）"
+            exit 1
+          fi
+          echo "最新バックアップ: ${LATEST}"
+          echo "BACKUP_FILENAME=${LATEST}" >> "$GITHUB_ENV"
+          aws s3 cp \
+            "s3://gh-trends-backups/${LATEST}" \
+            "/tmp/${LATEST}" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto
+
+      - name: バックアップファイルを解凍
+        run: |
+          gunzip "/tmp/${{ env.BACKUP_FILENAME }}"
+          echo "SQL_FILE=${BACKUP_FILENAME%.gz}" >> "$GITHUB_ENV"
+
+      # ⚠️ この操作で gh-trends-db-dev のデータは全て失われます
+      - name: dev DB を初期化（全テーブル削除）
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          cat > /tmp/reset-dev-db.sql << 'RESET_SQL'
+          DROP TABLE IF EXISTS ranking_weekly;
+          DROP TABLE IF EXISTS metrics_daily;
+          DROP TABLE IF EXISTS repo_snapshots;
+          DROP TABLE IF EXISTS users;
+          DROP TABLE IF EXISTS repositories;
+          DROP TABLE IF EXISTS languages;
+          DROP TABLE IF EXISTS __drizzle_migrations;
+          DROP TABLE IF EXISTS d1_migrations;
+          RESET_SQL
+          echo "dev DB（gh-trends-db-dev）を初期化します..."
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file /tmp/reset-dev-db.sql
+          echo "dev DB 初期化完了"
+
+      - name: バックアップ SQL を dev DB にリストア
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          echo "リストア中: ${{ env.SQL_FILE }}"
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development \
+            --remote \
+            --file "/tmp/${{ env.SQL_FILE }}"
+          echo "リストア完了"
+
+      # --restore フラグで鮮度チェック（直近24時間以内）をスキップし、データ存在確認のみ行う
+      - name: 整合性チェックを実行
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: npm run db:check -- --remote --env development --restore
+
+      # 失敗時は GitHub Issue を自動起票して通知
+      - name: 失敗時 GitHub Issue 自動起票
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().slice(0, 10);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 月次リストアテスト失敗 (${date})`,
+              body: [
+                '## 月次リストアテストが失敗しました',
+                '',
+                `**実行日時**: ${new Date().toISOString()}`,
+                `**ワークフロー実行**: [Run #${context.runNumber}](${runUrl})`,
+                '',
+                '## 対応手順',
+                '',
+                '1. 上記リンクからワークフロー実行ログを確認し、失敗したステップを特定する',
+                '2. [障害対応Runbook](docs/プロセス/障害対応Runbook.md) の「DB障害」セクションを参照する',
+                '3. R2 バケット（`gh-trends-backups`）にバックアップが存在するか確認する',
+                '4. dev DB の状態を手動確認:',
+                '   ```bash',
+                '   cd apps/backend && npm run db:check -- --remote --env development',
+                '   ```',
+                '5. 必要であれば `npm run db:migrate:dev:remote` で dev DB を再構築する',
+              ].join('\n'),
+              labels: ['bug'],
+            });
