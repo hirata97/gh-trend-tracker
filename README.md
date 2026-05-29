@@ -58,6 +58,16 @@ npm run dev:frontend # Web: http://localhost:4321
 
 詳細は [ロードマップ](./docs/基本/ロードマップ.md) を参照してください。
 
+## 運用上の注意
+
+### 月次リストアテスト中の開発用 DB について
+
+毎月1日 UTC 03:00 に [月次リストアテスト](./.github/workflows/restore-test.yml) が自動実行されます。
+
+> **⚠️ 警告**: このワークフロー実行中は **開発用 D1 データベース（`gh-trends-db-dev`）が初期化され、本番バックアップの内容で上書きされます。**
+> 実行後に dev DB を元の状態に戻すには `npm run db:migrate:dev:remote` を実行してください。
+> 手動実行する場合は他の開発者への周知を忘れずに。
+
 ## コスト
 
 完全無料で運用可能（Cloudflare Free枠内）：

@@ -411,3 +411,60 @@ npx wrangler pages project create gh-trend-tracker-frontend
 - GitHub Actions の **Actions** タブでログを確認
 - `deploy-backend` または `deploy-frontend` ジョブが赤くなっていれば失敗
 - `ci-check` が失敗している場合は lint/テスト/ビルドエラーを先に修正する
+
+---
+
+## 月次リストアテスト（restore-test.yml）
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00（日本時間 12:00）に R2 バックアップを開発用 D1 DB へリストアし、復旧手順が機能することを自動検証します。
+
+> **⚠️ 注意**: このワークフローは `gh-trends-db-dev`（開発用 D1）の全テーブルを削除してからリストアします。
+> 実行中は開発用 DB が一時的に破壊状態になります。
+> 実行後に dev DB を再構築するには `npm run db:migrate:dev:remote` を実行してください。
+
+### フロー
+
+```
+毎月1日 UTC 03:00（または手動実行）
+  └─ restore-test ジョブ
+       ├─ R2 から最新バックアップ（gh-trends-db_YYYY-MM-DD.sql.gz）を取得
+       ├─ gunzip で解凍
+       ├─ dev DB 初期化（ranking_weekly / metrics_daily / repo_snapshots / users / repositories / languages を DROP）
+       ├─ バックアップ SQL を dev DB に適用
+       ├─ 整合性チェック（npm run db:check -- --remote --env development --restore）
+       │   ※ --restore フラグで鮮度チェックをスキップ（古いバックアップデータ向け）
+       └─ 失敗時 → GitHub Issue を自動起票（ラベル: bug）
+```
+
+### 必要なシークレット
+
+`backup-d1.yml` と同じシークレットを使用します（追加設定不要）。
+
+| シークレット名 | 用途 |
+| --- | --- |
+| `R2_BACKUP_ACCESS_KEY_ID` | R2 バケットからの読み取り |
+| `R2_BACKUP_SECRET_ACCESS_KEY` | R2 バケットからの読み取り |
+| `CLOUDFLARE_API_TOKEN` | dev D1 への書き込み |
+| `CLOUDFLARE_ACCOUNT_ID` | R2 エンドポイント URL の構成 |
+
+### `--restore` フラグについて
+
+`check-db-integrity.ts` の `--restore` フラグを付けると、タイムスタンプベースの鮮度チェック（直近24時間以内）をスキップし、データが存在することのみを確認します。バックアップは古いデータを含むため、通常モードでは必ずタイムスタンプチェックが失敗します。
+
+### 手動実行手順
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"Monthly D1 Restore Test"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. `整合性チェックを実行` ステップが ✅ で完了することを確認
+
+### 失敗時の対応
+
+自動起票された Issue を確認し、[障害対応Runbook](./障害対応Runbook.md) を参照してください。
+主な原因と対処：
+
+| 原因 | 対処 |
+| --- | --- |
+| R2 にバックアップが存在しない | `backup-d1.yml` の実行履歴を確認 |
+| dev D1 への接続失敗 | `CLOUDFLARE_API_TOKEN` の権限・有効期限を確認 |
+| 整合性チェック失敗 | バックアップ SQL ファイルのデータ品質を確認 |
