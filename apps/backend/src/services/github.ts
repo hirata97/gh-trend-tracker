@@ -59,15 +59,26 @@ export async function fetchRepository(
         },
       });
 
-      // レート制限ヒット時: リセット時間まで待機してリトライ
+      // 二次レート制限（429 または Retry-After付き403）: 指定時間待機してリトライ
+      if (response.status === 429 || (response.status === 403 && response.headers.get('retry-after'))) {
+        const retryAfter = response.headers.get('retry-after');
+        const waitMs = retryAfter ? Math.min(Number(retryAfter) * 1000, 60000) : 60000;
+        // 並列リクエストのサンダリングハードを避けるためjitterを追加
+        const jitteredWait = waitMs + Math.random() * 1000;
+        console.warn(`二次レート制限到達: ${fullName}, ${jitteredWait.toFixed(0)}ms待機`);
+        await new Promise((resolve) => setTimeout(resolve, jitteredWait));
+        continue;
+      }
+
+      // 一次レート制限（x-ratelimit-remaining=0 の403）: リセット時間まで待機してリトライ
       if (response.status === 403) {
         const remaining = response.headers.get('x-ratelimit-remaining');
         if (remaining === '0') {
           const resetTime = Number(response.headers.get('x-ratelimit-reset')) * 1000;
           const waitMs = Math.max(resetTime - Date.now(), 1000);
-          // Workers制限を考慮し最大60秒まで待機
-          const cappedWait = Math.min(waitMs, 60000);
-          console.warn(`レート制限到達: ${fullName}, ${cappedWait}ms待機`);
+          // Workers制限を考慮し最大60秒まで待機。並列リクエストのサンダリングハードを避けるためjitterを追加
+          const cappedWait = Math.min(waitMs, 60000) + Math.random() * 1000;
+          console.warn(`一次レート制限到達: ${fullName}, ${cappedWait.toFixed(0)}ms待機`);
           await new Promise((resolve) => setTimeout(resolve, cappedWait));
           continue;
         }
@@ -123,9 +134,15 @@ export async function fetchRepository(
   return { status: 'error', fullName, message: 'リトライ回数超過' };
 }
 
+// GitHub 二次レート制限（同時リクエスト上限100）を考慮した並列数
+const FETCH_CONCURRENCY = 10;
+// チャンク間インターバル: 10並列 ÷ 700ms ≈ 14.3 req/s（GitHub推奨15/s以下を維持）
+const CHUNK_INTERVAL_MS = 700;
+
 /**
- * 複数リポジトリを逐次取得する
- * GitHub API レート制限を考慮してシーケンシャルに実行
+ * 複数リポジトリを並列取得する
+ * 同時 FETCH_CONCURRENCY 件ずつ処理し、チャンク間に CHUNK_INTERVAL_MS のインターバルを設けて
+ * GitHub二次レート制限（推奨15 req/s以下）に収める
  */
 export async function fetchRepositories(
   fullNames: string[],
@@ -139,21 +156,35 @@ export async function fetchRepositories(
     results: [],
   };
 
-  for (const fullName of fullNames) {
-    const result = await fetchRepository(fullName, token);
-    summary.results.push(result);
+  for (let i = 0; i < fullNames.length; i += FETCH_CONCURRENCY) {
+    const chunkStart = Date.now();
+    const chunk = fullNames.slice(i, i + FETCH_CONCURRENCY);
+    const results = await Promise.all(chunk.map((name) => fetchRepository(name, token)));
 
-    switch (result.status) {
-      case 'success':
-        summary.success++;
-        break;
-      case 'not_found':
-        summary.notFound++;
-        break;
-      case 'error':
-        summary.errors++;
-        console.error(`リポジトリ取得エラー: ${fullName} - ${result.message}`);
-        break;
+    for (const result of results) {
+      summary.results.push(result);
+
+      switch (result.status) {
+        case 'success':
+          summary.success++;
+          break;
+        case 'not_found':
+          summary.notFound++;
+          break;
+        case 'error':
+          summary.errors++;
+          console.error(`リポジトリ取得エラー: ${result.fullName} - ${result.message}`);
+          break;
+      }
+    }
+
+    // 最後のチャンク以外はインターバルを挿入（fetch時間を差し引いた残り時間だけ待機）
+    if (i + FETCH_CONCURRENCY < fullNames.length) {
+      const elapsed = Date.now() - chunkStart;
+      const remaining = Math.max(0, CHUNK_INTERVAL_MS - elapsed);
+      if (remaining > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+      }
     }
   }
 
