@@ -132,20 +132,22 @@ export class GitHubClient {
     languages: string[],
     perPage: number = 50
   ): Promise<Map<string, GitHubRepo[]>> {
-    const results = new Map<string, GitHubRepo[]>();
+    // 全言語を並列取得（逐次O(N×rate_limit_wait) → O(rate_limit_wait)）
+    // RateLimiterの共有stateにより最初の1件は即座に送信、残りは1回のwait後に同時送信
+    const entries = await Promise.all(
+      languages.map(async (language): Promise<[string, GitHubRepo[]]> => {
+        try {
+          console.log(`Fetching ${language} repositories...`);
+          const repos = await this.fetchTrendingRepos(language, perPage);
+          console.log(`✓ Fetched ${repos.length} ${language} repos`);
+          return [language, repos];
+        } catch (error) {
+          console.error(`✗ Failed to fetch ${language} repos:`, error);
+          return [language, []];
+        }
+      })
+    );
 
-    for (const language of languages) {
-      try {
-        console.log(`Fetching ${language} repositories...`);
-        const repos = await this.fetchTrendingRepos(language, perPage);
-        results.set(language, repos);
-        console.log(`✓ Fetched ${repos.length} ${language} repos`);
-      } catch (error) {
-        console.error(`✗ Failed to fetch ${language} repos:`, error);
-        results.set(language, []); // Store empty array for failed languages
-      }
-    }
-
-    return results;
+    return new Map(entries);
   }
 }
