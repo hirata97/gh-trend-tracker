@@ -344,6 +344,56 @@ GitHub Actionsのログは90日間保持されます。重要なデータは別�
 
 ---
 
+## 月次 D1 リストアテスト（restore-test.yml）
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00 に、R2 バックアップから dev DB へのリストアを自動検証します。
+
+> ⚠️ **注意: このワークフロー実行中は `gh-trends-db-dev`（開発用D1）が破壊されます。**
+> リストアテスト実行中は開発用 D1 データベースが初期化・上書きされるため、
+> ローカル開発や PR Preview 環境への影響が発生する可能性があります。
+> テスト後は `npm run db:migrate:dev:remote` で dev DB を再構築してください。
+
+### リストアテストフロー
+
+```
+毎月1日 UTC 03:00
+  └─ restore-test ジョブ
+       ├─ R2 ls → 最新バックアップキーを取得
+       ├─ R2 cp → /tmp/gh-trends-db_YYYY-MM-DD.sql.gz をダウンロード
+       ├─ gunzip → /tmp/gh-trends-db_YYYY-MM-DD.sql に展開
+       ├─ dev DB 初期化 → 全ユーザーテーブルを DROP
+       ├─ wrangler d1 execute --file → バックアップSQLを dev DB に適用
+       ├─ npm run db:check -- --remote --env development → 整合性チェック
+       └─ 失敗時 → GitHub Issue を自動起票
+```
+
+### 必要なシークレット
+
+リストアテストはバックアップ用シークレット（`R2_BACKUP_ACCESS_KEY_ID`、`R2_BACKUP_SECRET_ACCESS_KEY`）と、wrangler 用シークレット（`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`）を使用します。追加のシークレット設定は不要です。
+
+### 手動実行でテスト
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"月次 D1 リストアテスト"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. 実行ログで `整合性チェック実行` ステップが成功することを確認
+
+### テスト後の dev DB 再構築
+
+リストアテスト後に dev DB を開発状態に戻す場合：
+
+```bash
+cd apps/backend
+# dev DB にマイグレーションを再適用
+npm run db:migrate:dev:remote
+```
+
+### 失敗時の自動 Issue 起票
+
+整合性チェックまたはリストア処理が失敗した場合、`[自動] 月次リストアテスト失敗 (YYYY-MM-DD)` というタイトルで GitHub Issue が自動起票されます。起票された Issue のワークフロー実行リンクからログを確認し、原因を調査してください。
+
+---
+
 ## 自動デプロイ（deploy.yml）
 
 `.github/workflows/deploy.yml` は `main` ブランチへの push 時または手動トリガーで自動デプロイを実行します。
