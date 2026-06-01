@@ -8,8 +8,9 @@ on:
   # 手動実行を許可（動作確認用）
   workflow_dispatch:
 
-# GitHub Issueへの書き込み権限が必要
+# checkout に contents:read、Issue起票に issues:write が必要
 permissions:
+  contents: read
   issues: write
 
 jobs:
@@ -29,6 +30,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: dev D1 database ID を wrangler.jsonc に注入
+        env:
+          DEV_D1_DATABASE_ID: ${{ secrets.DEV_D1_DATABASE_ID }}
+        run: |
+          # wrangler.jsonc のプレースホルダーを実際の dev D1 database ID に置換
+          sed -i "s/REPLACE_WITH_DEV_D1_DATABASE_ID/${DEV_D1_DATABASE_ID}/g" apps/backend/wrangler.jsonc
 
       - name: 最新バックアップをR2から取得
         env:
