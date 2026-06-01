@@ -58,6 +58,13 @@ npm run dev:frontend # Web: http://localhost:4321
 
 詳細は [ロードマップ](./docs/基本/ロードマップ.md) を参照してください。
 
+## ⚠️ 注意事項
+
+| 事項 | 詳細 |
+| ---- | ---- |
+| **月次リストアテスト** | 毎月1日 UTC 03:00 に `gh-trends-db-dev`（開発用D1）が初期化されます。テスト後に dev DB が必要な場合は `npm run db:migrate:dev:remote` で再構築してください。 |
+| **本番DB直接操作禁止** | `wrangler d1 execute gh-trends-db --remote` の直接実行は禁止です。スキーマ変更は必ず `schema.ts` → マイグレーション手順で行ってください。 |
+
 ## コスト
 
 完全無料で運用可能（Cloudflare Free枠内）：

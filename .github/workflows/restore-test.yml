@@ -1,0 +1,151 @@
+name: 月次 D1 リストアテスト
+
+on:
+  # 毎月1日 UTC 03:00 に実行（日本時間 12:00 PM）
+  schedule:
+    - cron: '0 3 1 * *'
+
+  # 手動実行を許可（動作確認用）
+  workflow_dispatch:
+
+# checkout に contents:read、Issue起票に issues:write が必要
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: dev D1 database ID を wrangler.jsonc に注入
+        env:
+          DEV_D1_DATABASE_ID: ${{ secrets.DEV_D1_DATABASE_ID }}
+        run: |
+          # wrangler.jsonc のプレースホルダーを実際の dev D1 database ID に置換
+          sed -i "s/REPLACE_WITH_DEV_D1_DATABASE_ID/${DEV_D1_DATABASE_ID}/g" apps/backend/wrangler.jsonc
+
+      - name: 最新バックアップをR2から取得
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # R2バケットから最新バックアップのファイル名を取得（日付昇順ソートで末尾が最新）
+          LATEST_KEY=$(aws s3 ls \
+            "s3://gh-trends-backups/" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto \
+            | sort | tail -n1 | awk '{print $4}')
+
+          if [ -z "$LATEST_KEY" ]; then
+            echo "::error::R2にバックアップが存在しません"
+            exit 1
+          fi
+
+          echo "最新バックアップ: ${LATEST_KEY}"
+          echo "BACKUP_KEY=${LATEST_KEY}" >> "$GITHUB_ENV"
+
+          aws s3 cp \
+            "s3://gh-trends-backups/${LATEST_KEY}" \
+            "/tmp/${LATEST_KEY}" \
+            --endpoint-url "https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --region auto
+
+      - name: バックアップを展開
+        run: |
+          gunzip "/tmp/${BACKUP_KEY}"
+          SQL_FILE="/tmp/${BACKUP_KEY%.gz}"
+          echo "SQL_FILE=${SQL_FILE}" >> "$GITHUB_ENV"
+          echo "展開完了: ${SQL_FILE} ($(wc -l < "${SQL_FILE}") 行)"
+
+      - name: dev DB を初期化（全テーブル削除）
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          # ユーザーテーブル名を取得（SQLite・Cloudflare内部テーブルを除外）
+          QUERY_RESULT=$(npx wrangler d1 execute gh-trends-db-dev \
+            --env development --remote \
+            --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'd1_%'" \
+            --json)
+          TABLES=$(echo "$QUERY_RESULT" | jq -r '.[0].results[].name // empty' 2>/dev/null || true)
+
+          if [ -z "$TABLES" ]; then
+            echo "削除対象テーブルなし（空のDB）"
+          else
+            # DROP TABLE SQLを一時ファイルに書き出して一括実行
+            DROP_SQL_FILE=$(mktemp /tmp/drop-tables.XXXXXX.sql)
+            echo "PRAGMA foreign_keys = OFF;" > "$DROP_SQL_FILE"
+            for TABLE in $TABLES; do
+              echo "DROP TABLE IF EXISTS \"${TABLE}\";" >> "$DROP_SQL_FILE"
+            done
+            echo "削除対象テーブル:"
+            cat "$DROP_SQL_FILE"
+            npx wrangler d1 execute gh-trends-db-dev \
+              --env development --remote \
+              --file "$DROP_SQL_FILE"
+            rm -f "$DROP_SQL_FILE"
+            echo "全テーブル削除完了"
+          fi
+
+      - name: バックアップSQLを dev DB に適用
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: |
+          echo "適用ファイル: ${{ env.SQL_FILE }}"
+          npx wrangler d1 execute gh-trends-db-dev \
+            --env development --remote \
+            --file "${{ env.SQL_FILE }}"
+
+      - name: 整合性チェック実行
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: apps/backend
+        run: npm run db:check -- --remote --env development
+
+      - name: 失敗時にGitHub Issueを起票
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          BACKUP_KEY: ${{ env.BACKUP_KEY }}
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const backupKey = process.env.BACKUP_KEY || '（取得前に失敗）';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[自動] 月次リストアテスト失敗 (${new Date().toISOString().slice(0, 10)})`,
+              body: [
+                '## 月次リストアテスト失敗',
+                '',
+                `実行日時: ${new Date().toISOString()}`,
+                `バックアップキー: ${backupKey}`,
+                `ワークフロー実行: ${runUrl}`,
+                '',
+                '### 対応が必要な事項',
+                '',
+                '- [ ] ワークフローのログを確認',
+                '- [ ] バックアップデータの整合性を確認',
+                '- [ ] リストア手順の見直し（必要に応じて）',
+              ].join('\n'),
+              labels: ['bug'],
+            });
