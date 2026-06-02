@@ -10,9 +10,14 @@
  *   - repositories の主キー重複が無いこと
  *
  * 使用方法:
- *   npm run db:check                        # ローカルSQLiteを使用
- *   npm run db:check -- --remote            # リモートD1を使用（本番）
- *   npm run db:check -- --env development   # 開発用D1を使用
+ *   npm run db:check                              # ローカルSQLiteを使用
+ *   npm run db:check -- --remote                  # リモートD1を使用（本番）
+ *   npm run db:check -- --env development         # 開発用D1を使用
+ *   npm run db:check -- --remote --allow-stale    # 時刻チェックをスキップ（リストアテスト用）
+ *
+ * オプション:
+ *   --allow-stale  metrics_dailyの時刻チェックをスキップする。
+ *                  月次リストアテストのように古いバックアップを適用した場合に使用する。
  *
  * 終了コード:
  *   0: 全チェック通過
@@ -29,6 +34,8 @@ interface CheckResult {
 
 const args = process.argv.slice(2);
 const isRemote = args.includes('--remote');
+// バックアップからのリストア後など、データが古い場合に時刻チェックをスキップするフラグ
+const isAllowStale = args.includes('--allow-stale');
 const envArg = args.find((a) => a.startsWith('--env'));
 const env = envArg ? envArg.split('=')[1] ?? args[args.indexOf(envArg) + 1] : 'development';
 
@@ -82,19 +89,25 @@ try {
   checks.push({ name: 'repo_snapshots: 行数 > 0', passed: false, message: String(err) });
 }
 
-// 3. metrics_daily の最新レコードが直近24時間以内
+// 3. metrics_daily の最新レコードが直近24時間以内（--allow-stale 時はデータ存在のみ確認）
 try {
   const result = query(
     `SELECT MAX(calculated_date) as latest FROM metrics_daily`
   );
   const latest = result.results?.[0]?.latest as string | undefined;
-  const hasRecent = latest !== undefined && latest !== null && latest >= threshold.slice(0, 10);
+  const hasData = latest !== undefined && latest !== null;
+  const hasRecent = hasData && latest >= threshold.slice(0, 10);
+  // --allow-stale: リストアテスト等でデータが古い場合、時刻チェックをスキップしデータ存在のみ確認
+  const passed = isAllowStale ? hasData : hasRecent;
+  const checkName = isAllowStale
+    ? 'metrics_daily: データ存在確認（--allow-stale: 時刻チェックスキップ）'
+    : 'metrics_daily: 最新レコードが直近24時間以内';
   checks.push({
-    name: 'metrics_daily: 最新レコードが直近24時間以内',
-    passed: hasRecent,
-    message: hasRecent
+    name: checkName,
+    passed,
+    message: passed
       ? `最新レコード: ${latest}`
-      : `最新レコード(${latest ?? 'なし'})が24時間以上前です（閾値: ${threshold.slice(0, 10)}）`,
+      : `最新レコード(${latest ?? 'なし'})${isAllowStale ? 'が存在しません' : `が24時間以上前です（閾値: ${threshold.slice(0, 10)}）`}`,
   });
 } catch (err) {
   checks.push({ name: 'metrics_daily: 最新レコードが直近24時間以内', passed: false, message: String(err) });
