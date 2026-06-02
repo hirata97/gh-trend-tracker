@@ -12,6 +12,9 @@ jobs:
   restore-test:
     name: D1 Restore Test (dev DB)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - name: Checkout repository
@@ -78,7 +81,9 @@ jobs:
         run: |
           echo "::warning::⚠️ 開発用DB (gh-trends-db-dev) を初期化します。開発中のローカルデータは失われます。"
 
-          for table in users ranking_weekly metrics_daily repo_snapshots repositories languages; do
+          # d1_migrations はwrangler d1 migrations applyが管理するメタテーブル。
+          # バックアップSQLに同テーブルのINSERTが含まれる場合、残存していると競合するため必ず DROPする。
+          for table in users ranking_weekly metrics_daily repo_snapshots repositories languages d1_migrations; do
             npx wrangler d1 execute gh-trends-db-dev \
               --env development \
               --remote \
