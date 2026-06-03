@@ -411,3 +411,74 @@ npx wrangler pages project create gh-trend-tracker-frontend
 - GitHub Actions の **Actions** タブでログを確認
 - `deploy-backend` または `deploy-frontend` ジョブが赤くなっていれば失敗
 - `ci-check` が失敗している場合は lint/テスト/ビルドエラーを先に修正する
+
+---
+
+## 月次リストアテスト（restore-test.yml）
+
+`.github/workflows/restore-test.yml` は毎月1日 UTC 03:00（日本時間 12:00）に R2 バックアップからのリストアテストを実行します。
+
+### リストアテストフロー
+
+```
+毎月1日 UTC 03:00
+  └─ restore-test ジョブ
+       ├─ R2 から最新バックアップを取得（.sql.gz）
+       ├─ gzip 解凍
+       ├─ dev D1 (gh-trends-db-dev) を初期化（全ユーザーテーブルをDROP）
+       ├─ バックアップSQLを dev D1 に適用
+       ├─ 整合性チェック（npm run db:check -- --remote --env development）
+       └─ 失敗時: GitHub Issue を自動起票
+```
+
+### ⚠️ 重要: dev DB の破壊について
+
+**リストアテスト実行中は `gh-trends-db-dev`（開発用 D1）が完全に初期化されます。**
+
+- リストアテスト実行中は開発環境のデータが失われます
+- ローカル開発中にリストアテストが走った場合、dev D1 への接続は影響を受けます
+- スケジュール実行は毎月1日 UTC 03:00（日本時間 12:00 正午）のため、通常の開発時間帯と重なる可能性があります
+
+#### dev DB を復旧する場合
+
+リストアテスト後に dev D1 を開発可能な状態に戻す手順:
+
+```bash
+# マイグレーション再適用でスキーマを復元
+cd apps/backend
+npm run db:migrate:dev:remote
+
+# 必要に応じてデータを再収集
+npm run collect -- --remote --env development
+```
+
+### 失敗時の対応
+
+リストアテストが失敗すると、自動的に GitHub Issue が起票されます（タイトル: `[自動] 月次リストアテスト失敗 (YYYY-MM-DD)`）。
+
+**確認手順:**
+
+1. GitHub Actions の **Actions** タブで `restore-test` のログを確認
+2. 失敗したステップを特定:
+   - `Get latest backup from R2`: R2 バケットにバックアップが存在するか確認
+   - `Restore backup to dev DB`: SQL 適用エラーの詳細を確認
+   - `Run integrity check`: どのチェックが失敗したか確認
+3. 必要に応じて手動で `workflow_dispatch` を使って再実行
+
+### 必要なシークレット
+
+バックアップ用シークレット（`backup-d1.yml` と共用）:
+
+| シークレット名 | 説明 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | D1 アクセス権限を持つ Cloudflare API トークン |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare アカウント ID |
+| `R2_BACKUP_ACCESS_KEY_ID` | R2 バケットへの読み取り権限を持つ Access Key ID |
+| `R2_BACKUP_SECRET_ACCESS_KEY` | 対応する Secret Access Key |
+
+### 手動実行でテスト
+
+1. GitHub リポジトリの **"Actions"** タブを開く
+2. 左サイドバーの **"Monthly Restore Test"** をクリック
+3. **"Run workflow"** → **"Run workflow"** をクリック
+4. `Run integrity check` ステップが成功することを確認
