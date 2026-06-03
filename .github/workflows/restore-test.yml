@@ -15,10 +15,17 @@ jobs:
   restore-test:
     name: Restore Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Configure dev D1 database ID
+        run: |
+          sed -i 's/REPLACE_WITH_DEV_D1_DATABASE_ID/${{ secrets.DEV_D1_DATABASE_ID }}/g' apps/backend/wrangler.jsonc
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
