@@ -58,6 +58,18 @@ npm run dev:frontend # Web: http://localhost:4321
 
 詳細は [ロードマップ](./docs/基本/ロードマップ.md) を参照してください。
 
+## 自動化ワークフロー
+
+| ワークフロー | スケジュール | 概要 |
+| ------------ | ------------ | ---- |
+| `collect-data.yml` | 毎日 UTC 0:00 | GitHubトレンドデータ収集 |
+| `backup-d1.yml` | 毎日 UTC 2:00 | D1データベースをR2へバックアップ |
+| `restore-test.yml` | 毎月1日 UTC 3:00 | R2バックアップからのリストアテスト |
+| `deploy.yml` | mainプッシュ時 | Backend/Frontendの自動デプロイ |
+
+> ⚠️ **注意**: `restore-test.yml` の実行中は **dev D1 (gh-trends-db-dev) が初期化されます**。
+> 開発環境のデータが失われるため、実行タイミングに注意してください。
+
 ## コスト
 
 完全無料で運用可能（Cloudflare Free枠内）：
